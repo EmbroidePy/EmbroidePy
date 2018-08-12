@@ -2,6 +2,7 @@
 wxWidgets Embroidery Stitch Editor
 
 `pip install pyembroidery`
+
 `pip install wxPython`
 
 Uses wxPython and pyembroidery to import, export, view multiple files. Simulates sew paths, forwards and backwards.
