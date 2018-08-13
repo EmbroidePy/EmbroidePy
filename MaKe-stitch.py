@@ -58,9 +58,45 @@ class StitchPanel(wx.Panel):
         for filename in event.GetFiles():
             self.load(str(filename))
 
+    def on_mouse_move(self, event):
+        if self.drag_point is None:
+            return
+        mod_stitch = self.emb_pattern.stitches[self.drag_point]
+        position = self.get_pattern_point(event.GetPosition())
+        mod_stitch[0] = position[0]
+        mod_stitch[1] = position[1]
+        self.update_drawing()
+
+    def on_mouse_down(self, event):
+        self.SetFocus()
+        if self.emb_pattern is None:
+            return
+        position = event.GetPosition()
+        nearest = self.get_nearest_point(position)
+        if nearest[1] > 25:
+            event.Skip()
+            self.drag_point = None
+            return
+        best_index = nearest[0]
+        self.drag_point = best_index
+        self.selected_point = best_index
+
+    def on_mouse_up(self, event):
+        self.drag_point = None
+        self.update_affines()
+        self.update_drawing()
+
     def on_left_double_click(self, event):
         self.clicked_position = event.GetPosition()
         nearest = self.get_nearest_point(self.clicked_position)
+        if nearest[0] is None:
+            position = self.get_pattern_point(self.clicked_position)
+            stitches = self.emb_pattern.stitches
+            stitches.append([position[0], position[1], pyembroidery.STITCH])
+            self.selected_point = 0
+            self.update_affines()
+            self.update_drawing()
+            return
         if nearest[1] > 25:
             if self.selected_point is None:
                 return
@@ -131,8 +167,10 @@ class StitchPanel(wx.Panel):
                 self.selected_point = 0
             self.update_drawing()
         elif keycode in [127]:
-            stitches = self.emb_pattern.stitches
             position = self.selected_point
+            if position is None:
+                return
+            stitches = self.emb_pattern.stitches
             del stitches[position]
             stitch_max = len(self.emb_pattern.stitches)
             if self.selected_point >= stitch_max:
@@ -181,15 +219,6 @@ class StitchPanel(wx.Panel):
         self.translate_y = -min_y + (height * self.buffer) / 2
         self.grid = None
 
-    def on_mouse_move(self, event):
-        if self.drag_point is None:
-            return
-        mod_stitch = self.emb_pattern.stitches[self.drag_point]
-        position = self.get_pattern_point(event.GetPosition())
-        mod_stitch[0] = position[0]
-        mod_stitch[1] = position[1]
-        self.update_drawing()
-
     def get_pattern_point(self, position):
         px = position[0]
         py = position[1]
@@ -208,20 +237,6 @@ class StitchPanel(wx.Panel):
         dx *= dx
         dy *= dy
         return dx + dy
-
-    def on_mouse_down(self, event):
-        self.SetFocus()
-        if self.emb_pattern is None:
-            return
-        position = event.GetPosition()
-        nearest = self.get_nearest_point(position)
-        if nearest[1] > 25:
-            event.Skip()
-            self.drag_point = None
-            return
-        best_index = nearest[0]
-        self.drag_point = best_index
-        self.selected_point = best_index
 
     def get_nearest_point(self, position):
         scene_x = position[0]
@@ -242,11 +257,6 @@ class StitchPanel(wx.Panel):
                 best_distance = distance
                 best_index = i
         return best_index, best_distance, best_point
-
-    def on_mouse_up(self, event):
-        self.drag_point = None
-        self.update_affines()
-        self.update_drawing()
 
     def __set_properties(self):
         # begin wxGlade: StitchPanel.__set_properties
