@@ -51,6 +51,7 @@ class StitchPanel(wx.Panel):
         self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_mouse_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
+        self.Bind(wx.EVT_MIDDLE_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DCLICK, self.on_right_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
@@ -110,7 +111,7 @@ class StitchPanel(wx.Panel):
     def on_left_double_click(self, event):
         self.clicked_position = event.GetPosition()
         nearest = self.get_nearest_point(self.clicked_position)
-        if nearest[0] is None:
+        if nearest[0] is None:  # No nearest node. Must have no nodes.
             position = self.get_pattern_point(self.clicked_position)
             stitches = self.emb_pattern.stitches
             stitches.append([position[0], position[1], pyembroidery.STITCH])
@@ -118,25 +119,18 @@ class StitchPanel(wx.Panel):
             self.update_affines()
             self.update_drawing()
             return
-        if nearest[1] > 25:
-            if self.selected_point is None:
-                return
-            stitches = self.emb_pattern.stitches
-            stitch = stitches[self.selected_point]
-            new_stitch = stitch[:]
-            position = self.get_pattern_point(self.clicked_position)
-            new_stitch[0] = position[0]
-            new_stitch[1] = position[1]
-            stitches.insert(self.selected_point + 1, new_stitch)
-            self.selected_point += 1
-            self.update_affines()
-            self.update_drawing()
+
+        if self.selected_point is None:
             return
-        best_index = nearest[0]
         stitches = self.emb_pattern.stitches
-        stitch = stitches[best_index]
-        stitches.insert(best_index, stitch[:])
-        self.selected_point = best_index
+        stitch = stitches[self.selected_point]
+        new_stitch = stitch[:]
+        position = self.get_pattern_point(self.clicked_position)
+        new_stitch[0] = position[0]
+        new_stitch[1] = position[1]
+        stitches.insert(self.selected_point + 1, new_stitch)
+        self.selected_point += 1
+        self.update_affines()
         self.update_drawing()
 
     def on_right_mouse_down(self, event):
