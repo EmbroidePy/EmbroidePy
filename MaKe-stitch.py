@@ -51,6 +51,7 @@ class StitchPanel(wx.Panel):
         self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_mouse_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
+        self.Bind(wx.EVT_RIGHT_DCLICK, self.on_right_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
 
@@ -83,6 +84,26 @@ class StitchPanel(wx.Panel):
 
     def on_mouse_up(self, event):
         self.drag_point = None
+        self.update_affines()
+        self.update_drawing()
+
+    def on_right_double_click(self, event):
+        if self.selected_point is None:
+            return
+        stitches = self.emb_pattern.stitches
+        stitch = stitches[self.selected_point]
+        new_stitch = stitch[:]
+        new_stitch2 = stitch[:]
+        new_stitch3 = stitch[:]
+        position = self.get_pattern_point(self.clicked_position)
+        new_stitch[0] = position[0]
+        new_stitch[1] = position[1]
+        new_stitch3[0] = position[0]
+        new_stitch3[1] = position[1]
+        stitches.insert(self.selected_point + 1, new_stitch)
+        stitches.insert(self.selected_point + 2, new_stitch2)
+        stitches.insert(self.selected_point + 3, new_stitch3)
+        self.selected_point += 3
         self.update_affines()
         self.update_drawing()
 
@@ -193,7 +214,6 @@ class StitchPanel(wx.Panel):
         self.selected_point = None
         self.drag_point = None
         self.update_affines()
-
         self.update_drawing()
 
     def update_affines(self):
