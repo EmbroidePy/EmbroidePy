@@ -14,6 +14,7 @@ If the utility has a GUI and requires wxPython:
    * Has a wxGrid based stitch editor to allow on the fly stitch editing of designs.
 * MaKe-stitch.py GUI - for making .pmv stitch files (or other ones, but there aren't any other ones).
    * ![make-stitch](https://user-images.githubusercontent.com/3302478/44017845-9e4cb12e-9e8e-11e8-9849-f9b9ba75d516.png)
+   * See tutorial video: https://youtu.be/HCiFgb9-JHQ
    * Left Double-Click inserts a stitch.
    * Middle Double-Click inserts a stitch. Note: Since Left Click selects a node, double clicking a node selects then inserts at that exact location which duplicates the node. Using middle click means it will allow double-backing on nodes without selecting them.
    * Right Double-Click inserts a triple stitch.
