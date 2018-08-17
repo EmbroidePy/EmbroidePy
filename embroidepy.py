@@ -9,6 +9,7 @@ import wx.grid
 import sys
 import pyembroidery
 import math
+import os
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.CsvReader import get_command_dictionary
 
@@ -90,6 +91,7 @@ class EmbroideryView(wx.Panel):
         self.clicked_position = None
         self.previous_position = None
         self.name_dict = get_common_name_dictionary()
+        self.track = False
         # self.matrix = get_identity()
 
         # begin wxGlade: EmbroideryView.__init__
@@ -136,6 +138,7 @@ class EmbroideryView(wx.Panel):
         mod_stitch = self.emb_pattern.stitches[self.drag_point]
         mod_stitch[0] = self.clicked_position[0]
         mod_stitch[1] = self.clicked_position[1]
+        self.draw_data = None
         self.update_drawing()
 
     def on_mouse_down(self, event):
@@ -202,6 +205,7 @@ class EmbroideryView(wx.Panel):
         stitch = stitches[best_index]
         stitches.insert(best_index, stitch[:])
         self.selected_point = best_index
+        self.draw_data = None
         self.update_drawing()
 
     def on_right_mouse_down(self, event):
@@ -223,6 +227,7 @@ class EmbroideryView(wx.Panel):
         stitches = self.emb_pattern.stitches
         del stitches[best_index]
         self.selected_point = None
+        self.draw_data = None
         self.update_drawing()
 
     def on_menu_duplicate(self, event):
@@ -231,7 +236,15 @@ class EmbroideryView(wx.Panel):
         stitch = stitches[best_index]
         stitches.insert(best_index, stitch[:])
         self.selected_point = best_index
+        self.draw_data = None
         self.update_drawing()
+
+    def focus_position_scene(self, px, py):
+        client_size = self.ClientSize
+        center = self.convert_window_to_scene([client_size[0] / 2, client_size[1] / 2])
+        dx = (center[0] - px) / self.matrix[MATRIX_SCALE_X]
+        dy = (center[1] - py) / self.matrix[MATRIX_SCALE_Y]
+        self.scene_post_pan(dx, dy)
 
     def on_key_press(self, event):
         keycode = event.GetKeyCode()
@@ -243,6 +256,11 @@ class EmbroideryView(wx.Panel):
                 self.selected_point += 1
             if self.selected_point >= stitch_max:
                 self.selected_point = stitch_max - 1
+            if self.track:
+                stitches = self.emb_pattern.stitches
+                stitch = stitches[self.selected_point]
+                self.focus_position_scene(stitch[0], stitch[1])
+
             self.update_drawing()
         elif keycode in [65, wx.WXK_LEFT, wx.WXK_NUMPAD4]:
             if self.selected_point is None:
@@ -251,25 +269,37 @@ class EmbroideryView(wx.Panel):
                 self.selected_point -= 1
             if self.selected_point < 0:
                 self.selected_point = 0
+            if self.track:
+                stitches = self.emb_pattern.stitches
+                stitch = stitches[self.selected_point]
+                self.focus_position_scene(stitch[0], stitch[1])
+
             self.update_drawing()
         elif keycode in [127]:
-            position = self.selected_point
-            if position is None:
+            if self.selected_point is None:
                 return
             stitches = self.emb_pattern.stitches
-            del stitches[position]
+            del stitches[self.selected_point]
             stitch_max = len(self.emb_pattern.stitches)
             if self.selected_point >= stitch_max:
                 self.selected_point = stitch_max - 1
             if stitch_max == 0:
                 self.selected_point = None
+            if self.track:
+                stitches = self.emb_pattern.stitches
+                stitch = stitches[self.selected_point]
+                self.focus_position_scene(stitch[0], stitch[1])
+            self.draw_data = None
+            self.update_drawing()
+        elif keycode in [32]:
+            if self.selected_point is None:
+                return
+            stitches = self.emb_pattern.stitches
+            stitch = stitches[self.selected_point]
+            self.focus_position_scene(stitch[0], stitch[1])
             self.update_drawing()
 
-    def on_draw(self, dc):
-        if self.emb_pattern is None:
-            return
-        dc.DrawRectangle(0, 0, 100, 100)
-        # Since the pan and zoom is implemented in the canvas this can be maintained stablized.
+    def create_draw_data(self):
         draw_data = []
         for color in self.emb_pattern.get_as_colorblocks():
             lines = []
@@ -283,14 +313,26 @@ class EmbroideryView(wx.Panel):
                 last_y = current[1]
             thread = color[1]
             draw_data.append(((thread.get_red(), thread.get_green(), thread.get_blue()), lines))
+        return draw_data
 
+    def on_draw(self, dc):
+        if self.emb_pattern is None:
+            return
+        # Since the pan and zoom is implemented in the canvas this can be maintained stablized.
+        if self.draw_data is None:
+            self.draw_data = self.create_draw_data()
+        else:
+            print("cached.")
+        draw_data = self.draw_data
         current_stitch = self.current_stitch
         # Here's the actual drawing code.
+
+        scale_bit = math.pow(self.matrix[MATRIX_SCALE_X], -0.6)
 
         if current_stitch == -1:
             for drawElements in draw_data:
                 pen = wx.Pen(drawElements[0])
-                pen.SetWidth(3)
+                pen.SetWidth(5 * scale_bit)
                 dc.SetPen(pen)
                 dc.DrawLineList(drawElements[1])
         else:
@@ -298,7 +340,7 @@ class EmbroideryView(wx.Panel):
             count_range = 0
             for drawElements in draw_data:
                 pen = wx.Pen(drawElements[0])
-                pen.SetWidth(5)
+                pen.SetWidth(3 * scale_bit)
                 dc.SetPen(pen)
                 count_range += len(drawElements[1])
                 if current_stitch < count_range:
@@ -311,15 +353,14 @@ class EmbroideryView(wx.Panel):
                     dc.DrawLineList(drawElements[1])
                 count = count_range
         # dc.SetBrush(wx.Brush("Blue"))
-        dc.GetPen().SetWidth(1)
-        # for stitch in self.emb_pattern.stitches:
-        # dc.DrawCircle((tran_x + stitch[0]) * scale, (tran_y + stitch[1]) * scale, scale * 3)
 
         if self.selected_point is not None:
             mod_stitch = self.emb_pattern.stitches[self.selected_point]
             dc.SetBrush(wx.Brush("Green"))
+
             scene_point = mod_stitch
-            dc.DrawCircle(scene_point[0], scene_point[1], self.matrix[0] * 3)
+            dc.GetPen().SetWidth(1 * scale_bit)
+            dc.DrawCircle(scene_point[0], scene_point[1], 10 * scale_bit)
             dc.SetLogicalScale(1, 1)
             dc.SetLogicalOrigin(0, 0)
             name = self.name_dict[mod_stitch[2]] + " " + str(self.selected_point)
@@ -358,6 +399,7 @@ class EmbroideryView(wx.Panel):
             pass
 
     def on_size(self, event):
+        self.draw_data = None
         Size = self.ClientSize
         self._Buffer = wx.Bitmap(*Size)
         self.update_affines()
@@ -545,44 +587,6 @@ class SimulatorView(wx.Frame):
         self.canvas.current_stitch += 1
         if self.canvas.current_stitch > len(self.canvas.emb_pattern.stitches):
             self.canvas.current_stitch = 0
-
-    def rebuild_draw_data(self):
-        draw_data = []
-        extends = self.canvas.emb_pattern.get_extends()
-        for color in self.canvas.emb_pattern.get_as_stitchblock():
-            lines = []
-            last_x = None
-            last_y = None
-            for stitch in color[0]:
-                current_x = stitch[0] - extends[0]
-                current_y = stitch[1] - extends[1]
-                if last_x is not None:
-                    lines.append([last_x, last_y, current_x, current_y])
-                last_x = current_x
-                last_y = current_y
-            thread = color[1]
-            draw_data.append(((thread.get_red(), thread.get_green(), thread.get_blue()), lines))
-        return draw_data
-
-    def scale_draw_data(self, width, height):
-        draw_data = self.rebuild_draw_data()
-        return self.get_scaled_draw_data(draw_data, width, height)
-
-    def get_scaled_draw_data(self, data, width, height):
-        extends = self.canvas.emb_pattern.get_extends()
-        new_data = []
-        embroidery_width = extends[2] - extends[0]
-        embroidery_height = extends[3] - extends[1]
-        scale_x = float(width) / embroidery_width
-        scale_y = float(height) / embroidery_height
-        scale = min(scale_x, scale_y)
-        for element in data:
-            scaled_lines = []
-            unscaled_lines = element[1]
-            for e in unscaled_lines:
-                scaled_lines.append([scale * e[0], scale * e[1], scale * e[2], scale * e[3]])
-            new_data.append((element[0], scaled_lines))
-        return new_data
 
 
 # end of class SimulatorView
@@ -780,7 +784,15 @@ class GuiMain(wx.Frame):
         wxglade_tmp_menu = wx.Menu()
         menu_simulate = wxglade_tmp_menu.Append(wx.ID_ANY, "Simulate", "")
         self.Bind(wx.EVT_MENU, self.on_menu_simulate, menu_simulate)
+        menu_track = wxglade_tmp_menu.Append(wx.ID_ANY, "Track", "", wx.ITEM_CHECK)
+        self.Bind(wx.EVT_MENU, self.on_menu_track, menu_track)
         self.menubar.Append(wxglade_tmp_menu, "View")
+        self.SetMenuBar(self.menubar)
+
+        wxglade_tmp_menu = wx.Menu()
+        menu_close = wxglade_tmp_menu.Append(wx.ID_ANY, "Close Tab", "")
+        self.Bind(wx.EVT_MENU, self.on_menu_close, menu_close)
+        self.menubar.Append(wxglade_tmp_menu, "Window")
         self.SetMenuBar(self.menubar)
         # Menu Bar end
 
@@ -791,6 +803,24 @@ class GuiMain(wx.Frame):
         self.focused_design = None
 
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
+
+    def on_menu_track(self, event):
+        if self.main_notebook.CurrentPage is None:
+            return
+        if self.main_notebook.CurrentPage.canvas is None:
+            return
+        self.main_notebook.CurrentPage.canvas.track = not self.main_notebook.CurrentPage.canvas.track
+
+    def on_menu_close(self, event):
+        for index in range(self.main_notebook.GetPageCount()):
+            if self.main_notebook.GetPage(index).design is self.focused_design:
+                self.main_notebook.DeletePage(index)
+                self.main_notebook.SendSizeEvent()
+                self.focused_design = None
+                page = self.main_notebook.CurrentPage
+                if isinstance(page, ColorEmbroidery):
+                    self.focused_design = page.design
+                break
 
     def on_drop_file(self, event):
         for pathname in event.GetFiles():
@@ -858,7 +888,8 @@ class GuiMain(wx.Frame):
         page_sizer = wx.BoxSizer(wx.HORIZONTAL)
         embrodery_panel = ColorEmbroidery(self.main_notebook, wx.ID_ANY)
         embrodery_panel.set_design(embroidery)
-        self.main_notebook.AddPage(embrodery_panel, embroidery.extras['filename'])
+        head, tail = os.path.split(embroidery.extras['filename'])
+        self.main_notebook.AddPage(embrodery_panel, tail)
         page_sizer.Add(self.main_notebook, 1, wx.EXPAND, 0)
         page = self.main_notebook.CurrentPage
         if isinstance(page, ColorEmbroidery):
