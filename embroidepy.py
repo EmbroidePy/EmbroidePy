@@ -8,28 +8,92 @@ import wx
 import wx.grid
 import sys
 import pyembroidery
+import math
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.CsvReader import get_command_dictionary
 
 USE_BUFFERED_DC = True
+MATRIX_SCALE_X = 0
+MATRIX_SCALE_Y = 4
+MATRIX_TRANS_X = 2
+MATRIX_TRANS_Y = 5
+MATRIX_SKEW_X = 1
+MATRIX_SKEW_Y = 3
+MATRIX_PERSP_0 = 6
+MATRIX_PERSP_1 = 7
+
+
+def get_identity():
+    return \
+        1, 0, 0, \
+        0, 1, 0, \
+        0, 0, 1  # identity
+
+
+def get_scale(sx, sy=None):
+    if sy is None:
+        sy = sx
+    return \
+        sx, 0, 0, \
+        0, sy, 0, \
+        0, 0, 1
+
+
+def get_translate(tx, ty):
+    return \
+        1, 0, tx, \
+        0, 1, ty, \
+        0, 0, 1
+
+
+def get_rotate(theta):
+    tau = math.pi * 2
+    theta *= tau / 360
+    ct = math.cos(theta)
+    st = math.sin(theta)
+    return \
+        ct, st, 0, \
+        -st, ct, 0, \
+        0, 0, 1
+
+
+def matrix_multiply(a, b):
+    return [
+        a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
+        a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+        a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+        a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
+        a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+        a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+        a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
+        a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+        a[6] * b[2] + a[7] * b[5] + a[8] * b[8]]
+
+
+def point_in_matrix_space(matrix, v0, v1):
+    return [
+        v0 * matrix[MATRIX_SCALE_X] + v1 * matrix[MATRIX_SKEW_Y] + 1 * matrix[MATRIX_TRANS_X],
+        v0 * matrix[MATRIX_SKEW_X] + v1 * matrix[MATRIX_SCALE_Y] + 1 * matrix[MATRIX_TRANS_Y]
+    ]
 
 
 class EmbroideryView(wx.Panel):
     def __init__(self, *args, **kwds):
         self.draw_data = None
         self.emb_pattern = None
-        self.scale = 1
-        self.translate_x = 0
-        self.translate_y = 0
+        self.matrix = get_identity()
         self.buffer = 0.1
         self._Buffer = None
         self.current_stitch = -1
         self.selected_point = None
         self.drag_point = None
+        self.clicked_position = None
+        self.previous_position = None
         self.name_dict = get_common_name_dictionary()
+        # self.matrix = get_identity()
 
         # begin wxGlade: EmbroideryView.__init__
-        kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
+        kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE | wx.WANTS_CHARS
         wx.Panel.__init__(self, *args, **kwds)
 
         # end wxGlade
@@ -43,6 +107,7 @@ class EmbroideryView(wx.Panel):
         self.Bind(wx.EVT_LEFT_UP, self.on_mouse_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
+        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
 
         # OnSize called to make sure the buffer is initialized.
         # This might result in OnSize getting called twice on some
@@ -50,21 +115,36 @@ class EmbroideryView(wx.Panel):
         self.on_size(None)
         self.paint_count = 0
 
+    def scene_post_scale(self, sx, sy):
+        self.matrix = matrix_multiply(self.matrix, get_scale(sx, sy))
+
+    def scene_post_pan(self, px, py):
+        self.matrix = matrix_multiply(self.matrix, get_translate(px, py))
+
     def on_mouse_move(self, event):
+        self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         if self.drag_point is None:
+            if self.previous_position is None:
+                return
+            previous = self.convert_window_to_scene(self.previous_position)
+            dx = (self.clicked_position[0] - previous[0]) / self.matrix[MATRIX_SCALE_X]
+            dy = (self.clicked_position[1] - previous[1]) / self.matrix[MATRIX_SCALE_Y]
+            self.scene_post_pan(dx, dy)
+            self.update_drawing()
+            self.previous_position = event.GetPosition()
             return
         mod_stitch = self.emb_pattern.stitches[self.drag_point]
-        position = self.get_pattern_point(event.GetPosition())
-        mod_stitch[0] = position[0]
-        mod_stitch[1] = position[1]
+        mod_stitch[0] = self.clicked_position[0]
+        mod_stitch[1] = self.clicked_position[1]
         self.update_drawing()
 
     def on_mouse_down(self, event):
+        self.previous_position = event.GetPosition()
+        self.clicked_position = self.convert_window_to_scene(self.previous_position)
         self.SetFocus()
         if self.emb_pattern is None:
             return
-        position = event.GetPosition()
-        nearest = self.get_nearest_point(position)
+        nearest = self.get_nearest_point(self.clicked_position)
         if nearest[1] > 25:
             event.Skip()
             self.drag_point = None
@@ -74,19 +154,34 @@ class EmbroideryView(wx.Panel):
         self.selected_point = best_index
 
     def on_mouse_up(self, event):
+        self.clicked_position = None
+        self.previous_position = None
         self.drag_point = None
-        self.update_affines()
+        self.update_drawing()
+
+    def on_mousewheel(self, event):
+        rotation = event.GetWheelRotation()
+        origin = self.convert_window_to_scene([0, 0])
+        mouse = self.convert_window_to_scene(event.GetPosition())
+        dx = (mouse[0] - origin[0]) / self.matrix[MATRIX_SCALE_X]
+        dy = (mouse[1] - origin[1]) / self.matrix[MATRIX_SCALE_Y]
+        self.scene_post_pan(dx, dy)
+        if rotation > 1:
+            self.scene_post_scale(1.1, 1.1)
+        elif rotation < -1:
+            self.scene_post_scale(0.9, 0.9)
+        self.scene_post_pan(-dx, -dy)
+
         self.update_drawing()
 
     def on_left_double_click(self, event):
-        self.clicked_position = event.GetPosition()
+        self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         nearest = self.get_nearest_point(self.clicked_position)
         if nearest[0] is None:
-            position = self.get_pattern_point(self.clicked_position)
+            position = self.convert_window_to_scene(self.clicked_position)
             stitches = self.emb_pattern.stitches
             stitches.append([position[0], position[1], pyembroidery.STITCH])
             self.selected_point = 0
-            self.update_affines()
             self.update_drawing()
             return
         if nearest[1] > 25:
@@ -95,12 +190,11 @@ class EmbroideryView(wx.Panel):
             stitches = self.emb_pattern.stitches
             stitch = stitches[self.selected_point]
             new_stitch = stitch[:]
-            position = self.get_pattern_point(self.clicked_position)
+            position = self.clicked_position
             new_stitch[0] = position[0]
             new_stitch[1] = position[1]
             stitches.insert(self.selected_point + 1, new_stitch)
             self.selected_point += 1
-            self.update_affines()
             self.update_drawing()
             return
         best_index = nearest[0]
@@ -111,7 +205,7 @@ class EmbroideryView(wx.Panel):
         self.update_drawing()
 
     def on_right_mouse_down(self, event):
-        self.clicked_position = event.GetPosition()
+        self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         nearest = self.get_nearest_point(self.clicked_position)
         if nearest[1] > 25:
             event.Skip()
@@ -172,25 +266,21 @@ class EmbroideryView(wx.Panel):
             self.update_drawing()
 
     def on_draw(self, dc):
-        dc.SetBackground(wx.Brush("Grey"))
-        dc.Clear()
         if self.emb_pattern is None:
             return
-        scale = self.scale
-        tran_x = self.translate_x
-        tran_y = self.translate_y
+        dc.DrawRectangle(0, 0, 100, 100)
+        # Since the pan and zoom is implemented in the canvas this can be maintained stablized.
         draw_data = []
         for color in self.emb_pattern.get_as_colorblocks():
             lines = []
             last_x = None
             last_y = None
             for i, stitch in enumerate(color[0]):
-                current_x = stitch[0] + tran_x
-                current_y = stitch[1] + tran_y
+                current = stitch
                 if last_x is not None:
-                    lines.append([last_x * scale, last_y * scale, current_x * scale, current_y * scale])
-                last_x = current_x
-                last_y = current_y
+                    lines.append([last_x, last_y, current[0], current[1]])
+                last_x = current[0]
+                last_y = current[1]
             thread = color[1]
             draw_data.append(((thread.get_red(), thread.get_green(), thread.get_blue()), lines))
 
@@ -227,10 +317,13 @@ class EmbroideryView(wx.Panel):
 
         if self.selected_point is not None:
             mod_stitch = self.emb_pattern.stitches[self.selected_point]
-            name = self.name_dict[mod_stitch[2]] + " " + str(self.selected_point)
-            dc.DrawText(name, 25, 25)
             dc.SetBrush(wx.Brush("Green"))
-            dc.DrawCircle((tran_x + mod_stitch[0]) * scale, (tran_y + mod_stitch[1]) * scale, scale * 3)
+            scene_point = mod_stitch
+            dc.DrawCircle(scene_point[0], scene_point[1], self.matrix[0] * 3)
+            dc.SetLogicalScale(1, 1)
+            dc.SetLogicalOrigin(0, 0)
+            name = self.name_dict[mod_stitch[2]] + " " + str(self.selected_point)
+            dc.DrawText(name, 0, 0)
 
     def on_paint(self, event):
         # All that is needed here is to draw the buffer to screen
@@ -241,6 +334,7 @@ class EmbroideryView(wx.Panel):
             dc.DrawBitmap(self._Buffer, 0, 0)
 
     def update_affine(self, width, height):
+        self.matrix = get_identity()
         extends = self.emb_pattern.extends()
         min_x = min(extends[0], 50)
         min_y = min(extends[1], -50)
@@ -251,9 +345,10 @@ class EmbroideryView(wx.Panel):
         embroidery_height = (max_y - min_y) + (height * self.buffer)
         scale_x = float(width) / embroidery_width
         scale_y = float(height) / embroidery_height
-        self.scale = min(scale_x, scale_y)
-        self.translate_x = -min_x + (width * self.buffer) / 2
-        self.translate_y = -min_y + (height * self.buffer) / 2
+        translate_x = -min_x + (width * self.buffer) / 2
+        translate_y = -min_y + (height * self.buffer) / 2
+        self.matrix = matrix_multiply(self.matrix, get_translate(translate_x, translate_y))
+        self.matrix = matrix_multiply(self.matrix, get_scale(min(scale_x, scale_y)))
 
     def update_affines(self):
         Size = self.ClientSize
@@ -263,9 +358,9 @@ class EmbroideryView(wx.Panel):
             pass
 
     def on_size(self, event):
-        self.update_affines()
         Size = self.ClientSize
         self._Buffer = wx.Bitmap(*Size)
+        self.update_affines()
         self.update_drawing()
 
     def on_erase(self, event):
@@ -283,6 +378,11 @@ class EmbroideryView(wx.Panel):
         """
         dc = wx.MemoryDC()
         dc.SelectObject(self._Buffer)
+        dc.SetBackground(wx.Brush("Grey"))
+        dc.Clear()
+
+        dc.SetLogicalOrigin(-self.matrix[MATRIX_TRANS_X], -self.matrix[MATRIX_TRANS_Y])
+        dc.SetLogicalScale(self.matrix[MATRIX_SCALE_X], self.matrix[MATRIX_SCALE_Y])
         self.on_draw(dc)
         del dc  # need to get rid of the MemoryDC before Update() is called.
         self.Refresh()
@@ -290,18 +390,32 @@ class EmbroideryView(wx.Panel):
 
     def set_design(self, set_design):
         self.emb_pattern = set_design
+        # self.update_affines()
         self.update_drawing()
 
-    def get_pattern_point(self, position):
+    def convert_window_to_scene(self, position):
         px = position[0]
         py = position[1]
-        px /= self.scale
-        py /= self.scale
-        px -= self.translate_x
-        py -= self.translate_y
-        px = round(px / 2.5) * 2.5
-        py = round(py / 2.5) * 2.5
+        px /= self.matrix[MATRIX_SCALE_X]
+        py /= self.matrix[MATRIX_SCALE_Y]
+        px -= self.matrix[MATRIX_TRANS_X]
+        py -= self.matrix[MATRIX_TRANS_Y]
         return px, py
+
+    def convert_scene_to_window(self, position):
+        px = position[0]
+        py = position[1]
+        px += self.matrix[MATRIX_TRANS_X]
+        py += self.matrix[MATRIX_TRANS_Y]
+        px *= self.matrix[MATRIX_SCALE_X]
+        py *= self.matrix[MATRIX_SCALE_Y]
+        return px, py
+
+        # px /= self.scale
+        # py /= self.scale
+        # px -= self.translate_x
+        # py -= self.translate_y
+        # return px, py
 
     @staticmethod
     def distance_sq(p0, p1):
@@ -312,18 +426,11 @@ class EmbroideryView(wx.Panel):
         return dx + dy
 
     def get_nearest_point(self, position):
-        scene_x = position[0]
-        scene_y = position[1]
-        scene_x /= self.scale
-        scene_y /= self.scale
-        scene_x -= self.translate_x
-        scene_y -= self.translate_y
-        click_point = (scene_x, scene_y)
         best_point = None
         best_index = None
         best_distance = sys.maxint
         for i, stitch in enumerate(self.emb_pattern.stitches):
-            distance = self.distance_sq(click_point, stitch)
+            distance = self.distance_sq(position, stitch)
             if best_point is None or distance < best_distance or (
                     distance == best_distance and self.selected_point == i):
                 best_point = stitch
@@ -596,7 +703,10 @@ class StitchEditor(wx.Frame):
 
     def set_design(self, set_design):
         self.design = set_design
-        max = len(self.design.stitches)
+        if self.design is not None:
+            max = len(self.design.stitches)
+        else:
+            max = 0
         self.grid.CreateGrid(max, 3)
         self.grid.EnableDragColSize(0)
         self.grid.EnableDragRowSize(0)
@@ -694,6 +804,8 @@ class GuiMain(wx.Frame):
             self.focused_design = page.design
 
     def on_menu_stitch_edit(self, event):
+        if self.focused_design is None:
+            return
         stitch_list = StitchEditor(None, wx.ID_ANY, "")
         stitch_list.set_design(self.focused_design)
         stitch_list.Show()
