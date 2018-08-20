@@ -106,11 +106,13 @@ class EmbroideryView(wx.Panel):
 
         self.Bind(wx.EVT_MOTION, self.on_mouse_move)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_press)
-        self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_down)
-        self.Bind(wx.EVT_LEFT_UP, self.on_mouse_up)
+        self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_left_down)
+        self.Bind(wx.EVT_LEFT_UP, self.on_mouse_left_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
+        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
+        self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up);
 
         # OnSize called to make sure the buffer is initialized.
         # This might result in OnSize getting called twice on some
@@ -142,7 +144,7 @@ class EmbroideryView(wx.Panel):
         self.draw_data = None
         self.update_drawing()
 
-    def on_mouse_down(self, event):
+    def on_mouse_left_down(self, event):
         self.previous_position = event.GetPosition()
         self.clicked_position = self.convert_window_to_scene(self.previous_position)
         self.SetFocus()
@@ -157,7 +159,19 @@ class EmbroideryView(wx.Panel):
         self.drag_point = best_index
         self.selected_point = best_index
 
-    def on_mouse_up(self, event):
+    def on_mouse_left_up(self, event):
+        self.clicked_position = None
+        self.previous_position = None
+        self.drag_point = None
+        self.update_drawing()
+
+    def on_mouse_middle_down(self, event):
+        self.previous_position = event.GetPosition()
+        self.clicked_position = self.convert_window_to_scene(self.previous_position)
+        self.SetFocus()
+        self.drag_point = None
+
+    def on_mouse_middle_up(self, event):
         self.clicked_position = None
         self.previous_position = None
         self.drag_point = None
@@ -186,6 +200,7 @@ class EmbroideryView(wx.Panel):
             stitches = self.emb_pattern.stitches
             stitches.append([position[0], position[1], pyembroidery.STITCH])
             self.selected_point = 0
+            self.draw_data = None
             self.update_drawing()
             return
         if nearest[1] > 25:
@@ -199,6 +214,7 @@ class EmbroideryView(wx.Panel):
             new_stitch[1] = position[1]
             stitches.insert(self.selected_point + 1, new_stitch)
             self.selected_point += 1
+            self.draw_data = None
             self.update_drawing()
             return
         best_index = nearest[0]
@@ -212,16 +228,23 @@ class EmbroideryView(wx.Panel):
     def on_right_mouse_down(self, event):
         self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         nearest = self.get_nearest_point(self.clicked_position)
-        if nearest[1] > 25:
-            event.Skip()
-            return
         menu = wx.Menu()
-        menu_item = menu.Append(wx.ID_ANY, "Delete", "")
-        self.Bind(wx.EVT_MENU, self.on_menu_delete, menu_item)
-        menu_item = menu.Append(wx.ID_ANY, "Duplicate", "")
-        self.Bind(wx.EVT_MENU, self.on_menu_duplicate, menu_item)
+        if nearest[1] <= 25:
+            menu_item = menu.Append(wx.ID_ANY, "Delete", "")
+            self.Bind(wx.EVT_MENU, self.on_menu_delete, menu_item)
+            menu_item = menu.Append(wx.ID_ANY, "Duplicate", "")
+            self.Bind(wx.EVT_MENU, self.on_menu_duplicate, menu_item)
+        else:
+            menu_item = menu.Append(wx.ID_ANY, "Track", "", wx.ITEM_CHECK)
+            if self.track:
+                # menu_item.SetChecked(self.track)
+                pass
+            self.Bind(wx.EVT_MENU, self.on_menu_track, menu_item)
         self.PopupMenu(menu)
         menu.Destroy()
+
+    def on_menu_track(self, event):
+        self.track = not self.track
 
     def on_menu_delete(self, event):
         best_index = self.get_nearest_point(self.clicked_position)[0]
@@ -823,8 +846,6 @@ class GuiMain(wx.Frame):
         wxglade_tmp_menu = wx.Menu()
         menu_simulate = wxglade_tmp_menu.Append(wx.ID_ANY, "Simulate", "")
         self.Bind(wx.EVT_MENU, self.on_menu_simulate, menu_simulate)
-        menu_track = wxglade_tmp_menu.Append(wx.ID_ANY, "Track", "", wx.ITEM_CHECK)
-        self.Bind(wx.EVT_MENU, self.on_menu_track, menu_track)
         self.menubar.Append(wxglade_tmp_menu, "View")
         self.SetMenuBar(self.menubar)
 
@@ -842,13 +863,6 @@ class GuiMain(wx.Frame):
         self.focused_design = None
 
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
-
-    def on_menu_track(self, event):
-        if self.main_notebook.CurrentPage is None:
-            return
-        if self.main_notebook.CurrentPage.canvas is None:
-            return
-        self.main_notebook.CurrentPage.canvas.track = not self.main_notebook.CurrentPage.canvas.track
 
     def on_menu_close(self, event):
         for index in range(self.main_notebook.GetPageCount()):
