@@ -12,6 +12,7 @@ import math
 import os
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.CsvReader import get_command_dictionary
+from pyembroidery.EmbConstant import *
 
 USE_BUFFERED_DC = True
 MATRIX_SCALE_X = 0
@@ -249,7 +250,19 @@ class EmbroideryView(wx.Panel):
     def on_key_press(self, event):
         keycode = event.GetKeyCode()
         stitch_max = len(self.emb_pattern.stitches)
-        if keycode in [68, wx.WXK_RIGHT, wx.WXK_NUMPAD6]:
+        if keycode in [81, 113]:
+            stitches = self.emb_pattern.stitches
+            stitch = stitches[self.selected_point]
+            if stitch[2] != SEQUIN_EJECT:
+                stitch[2] = SEQUIN_EJECT
+            else:
+                stitch[2] = STITCH
+            self.draw_data = None
+            self.update_drawing()
+        elif keycode in [wx.WXK_ESCAPE]:
+            self.selected_point = None
+            self.update_drawing()
+        elif keycode in [68, wx.WXK_RIGHT, wx.WXK_NUMPAD6]:
             if self.selected_point is None:
                 self.selected_point = 0
             else:
@@ -300,19 +313,45 @@ class EmbroideryView(wx.Panel):
             self.update_drawing()
 
     def create_draw_data(self):
+        stitches = self.emb_pattern.stitches
         draw_data = []
-        for color in self.emb_pattern.get_as_colorblocks():
+        color_index = 0
+        color = self.emb_pattern.get_thread_or_filler(color_index)
+        color_index += 1
+        lines = []
+        trimmed = True
+        command = NO_COMMAND
+
+        i = -1
+        ie = len(stitches) - 2
+        while i < ie:
+            i += 1
+            current = stitches[i]
+            next = stitches[i + 1]
+            lines.append([current[0], current[1], next[0], next[1]])
+            command = current[2]
+            if command == COLOR_CHANGE:
+                color = self.emb_pattern.get_thread_or_filler(color_index)
+                color_index += 1
+            if command == next[2]:
+                continue
+            if command == STITCH or command == SEQUIN_EJECT or command == SEW_TO or command == NEEDLE_AT:
+                trimmed = False
+            elif command == TRIM or command == COLOR_CHANGE or command == COLOR_BREAK or command == SEQUENCE_BREAK:
+                trimmed = True
+            draw_data.append((
+                (color.get_red(), color.get_green(), color.get_blue()),
+                lines,
+                command,
+                trimmed))
             lines = []
-            last_x = None
-            last_y = None
-            for i, stitch in enumerate(color[0]):
-                current = stitch
-                if last_x is not None:
-                    lines.append([last_x, last_y, current[0], current[1]])
-                last_x = current[0]
-                last_y = current[1]
-            thread = color[1]
-            draw_data.append(((thread.get_red(), thread.get_green(), thread.get_blue()), lines))
+
+        if len(lines) > 0:
+            draw_data.append((
+                (color.get_red(), color.get_green(), color.get_blue()),
+                lines,
+                command,
+                trimmed))
         return draw_data
 
     def on_draw(self, dc):
@@ -321,45 +360,45 @@ class EmbroideryView(wx.Panel):
         # Since the pan and zoom is implemented in the canvas this can be maintained stablized.
         if self.draw_data is None:
             self.draw_data = self.create_draw_data()
-        else:
-            print("cached.")
         draw_data = self.draw_data
         current_stitch = self.current_stitch
         # Here's the actual drawing code.
 
         scale_bit = math.pow(self.matrix[MATRIX_SCALE_X], -0.6)
 
-        if current_stitch == -1:
-            for drawElements in draw_data:
-                pen = wx.Pen(drawElements[0])
-                pen.SetWidth(5 * scale_bit)
-                dc.SetPen(pen)
+        count = 0
+        count_range = 0
+        for drawElements in draw_data:
+            pen = wx.Pen(drawElements[0])
+            if drawElements[3]:
+                pen.SetStyle(wx.PENSTYLE_DOT)
+            else:
+                pen.SetStyle(wx.PENSTYLE_SOLID)
+            if drawElements[2] == SEQUIN_EJECT:
+                dc.SetBrush(wx.Brush("Gold"))
+                dc.SetPen(wx.TRANSPARENT_PEN)
+                lines = drawElements[1]
+                for line in lines:
+                    dc.DrawCircle(line[0], line[1], 25)
+            pen.SetWidth(3 * scale_bit)
+            dc.SetPen(pen)
+            count_range += len(drawElements[1])
+            if current_stitch != -1 and current_stitch < count_range:
+                dif = current_stitch - count
+                segments = drawElements[1]
+                subsegs = segments[:dif]
+                dc.DrawLineList(subsegs)
+                break
+            else:
                 dc.DrawLineList(drawElements[1])
-        else:
-            count = 0
-            count_range = 0
-            for drawElements in draw_data:
-                pen = wx.Pen(drawElements[0])
-                pen.SetWidth(3 * scale_bit)
-                dc.SetPen(pen)
-                count_range += len(drawElements[1])
-                if current_stitch < count_range:
-                    dif = current_stitch - count
-                    segments = drawElements[1]
-                    subsegs = segments[:dif]
-                    dc.DrawLineList(subsegs)
-                    break
-                else:
-                    dc.DrawLineList(drawElements[1])
-                count = count_range
-        # dc.SetBrush(wx.Brush("Blue"))
+            count = count_range
 
         if self.selected_point is not None:
             mod_stitch = self.emb_pattern.stitches[self.selected_point]
             dc.SetBrush(wx.Brush("Green"))
-
             scene_point = mod_stitch
-            dc.GetPen().SetWidth(1 * scale_bit)
+            dc.GetPen().SetWidth(1)
+            dc.GetPen().SetStyle(wx.PENSTYLE_SOLID)
             dc.DrawCircle(scene_point[0], scene_point[1], 10 * scale_bit)
             dc.SetLogicalScale(1, 1)
             dc.SetLogicalOrigin(0, 0)
@@ -876,7 +915,7 @@ class GuiMain(wx.Frame):
 
             # save the current contents in the file
             pathname = fileDialog.GetPath()
-            pyembroidery.write(self.focused_design.emb_pattern, str(pathname))
+            pyembroidery.write(self.focused_design, str(pathname))
 
     def on_menu_simulate(self, event):
         simulator = SimulatorView(None, wx.ID_ANY, "")
