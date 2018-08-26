@@ -294,6 +294,8 @@ class EmbroideryView(wx.Panel):
                 self.selected_point = stitch_max - 1
             if self.track:
                 stitches = self.emb_pattern.stitches
+                if len(stitches) == 0:
+                    return
                 stitch = stitches[self.selected_point]
                 self.focus_position_scene(stitch[0], stitch[1])
 
@@ -307,6 +309,8 @@ class EmbroideryView(wx.Panel):
                 self.selected_point = 0
             if self.track:
                 stitches = self.emb_pattern.stitches
+                if len(stitches) == 0:
+                    return
                 stitch = stitches[self.selected_point]
                 self.focus_position_scene(stitch[0], stitch[1])
 
