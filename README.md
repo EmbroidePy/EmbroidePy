@@ -10,8 +10,19 @@ If the utility has a GUI and requires wxPython:
 ---
 
 * embroidepy.py	GUI - interface embroidery editor.
-   * Uses wxPython and pyembroidery to import, export, view multiple files. Simulates sew paths, forwards and backwards.
+   * ![embroidepy](https://user-images.githubusercontent.com/3302478/44623722-06096680-a88b-11e8-8e7d-30b210892ba1.png)
+   * Uses wxPython and pyembroidery to import, export, view multiple files.
+   * Simulates sew paths, forwards and backwards.
+      * ![empy-sim](https://user-images.githubusercontent.com/3302478/44623750-ef174400-a88b-11e8-9fdc-dfb2cebefc41.png)
    * Has a wxGrid based stitch editor to allow on the fly stitch editing of designs.
+   * Allows drag and drop of individual stitches.
+   * Allows zoom-in zoom-out and pan on the fly.
+   * Keyboard Commands:
+      * 'q' injects stitches.
+      * Delete button deletes selected node.
+      * Right Arrow or 'd' moves to the next node in the list.
+      * Left Arrow or 'a' moves to the next node in the list. ('a' & 'd' are WASD keys).
+      * Escape deselects selected node.
 * MaKe-stitch.py GUI - for making .pmv stitch files (or other ones, but there aren't any other ones).
    * ![make-stitch](https://user-images.githubusercontent.com/3302478/44017845-9e4cb12e-9e8e-11e8-9849-f9b9ba75d516.png)
    * See tutorial video: https://youtu.be/HCiFgb9-JHQ
