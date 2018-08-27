@@ -834,7 +834,7 @@ class ColorEmbroidery(wx.Panel):
 
 class BaseAuiNotebook(aui.AuiNotebook):
     """
-    Base `AuiNotebook`_ with extended methods.
+    Base AuiNotebook
 
     :seealso: http://wxpython.org/Phoenix/docs/html/lib.agw.aui.auibook.AuiNotebook.html
     """
