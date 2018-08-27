@@ -858,7 +858,6 @@ class GuiMain(wx.Frame):
         wx.Frame.__init__(self, *args, **kwds)
         self.SetSize((697, 552))
         self.main_notebook = BaseAuiNotebook(self)
-        self.Bind(wx.EVT_BOOKCTRL_PAGE_CHANGED, self.on_page_changed, self.main_notebook)
 
         # Menu Bar
         self.menubar = wx.MenuBar()
@@ -890,8 +889,6 @@ class GuiMain(wx.Frame):
         self.__set_properties()
         # self.__do_layout()
         # end wxGlade
-        self.designs = []
-        self.focused_design = None
 
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
 
@@ -906,16 +903,12 @@ class GuiMain(wx.Frame):
             pattern.extras["filename"] = pathname
             self.add_embroidery(pattern)
 
-    def on_page_changed(self, event):
-        page = self.main_notebook.CurrentPage
-        if isinstance(page, ColorEmbroidery):
-            self.focused_design = page.design
-
     def on_menu_stitch_edit(self, event):
-        if self.focused_design is None:
+        page = self.main_notebook.GetCurrentPage()
+        if not isinstance(page, ColorEmbroidery) or page.design is None:
             return
         stitch_list = StitchEditor(None, wx.ID_ANY, "")
-        stitch_list.set_design(self.focused_design)
+        stitch_list.set_design(page.design)
         stitch_list.Show()
 
     def on_menu_import(self, event):
@@ -937,6 +930,9 @@ class GuiMain(wx.Frame):
             self.add_embroidery(pattern)
 
     def on_menu_export(self, event):
+        page = self.main_notebook.GetCurrentPage()
+        if not isinstance(page, ColorEmbroidery) or page.design is None:
+            return
         files = ""
         for format in pyembroidery.supported_formats():
             try:
@@ -954,24 +950,24 @@ class GuiMain(wx.Frame):
 
             # save the current contents in the file
             pathname = fileDialog.GetPath()
-            pyembroidery.write(self.focused_design, str(pathname))
+            pyembroidery.write(page.design, str(pathname))
 
     def on_menu_simulate(self, event):
+        page = self.main_notebook.GetCurrentPage()
+        if not isinstance(page, ColorEmbroidery) or page.design is None:
+            return
         simulator = SimulatorView(None, wx.ID_ANY, "")
-        simulator.set_design(self.focused_design)
+        simulator.set_design(page.design)
         simulator.Show()
 
     def add_embroidery(self, embroidery):
-        self.designs.append(embroidery)
         page_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        embrodery_panel = ColorEmbroidery(self.main_notebook, wx.ID_ANY)
-        embrodery_panel.set_design(embroidery)
+        embroidery_panel = ColorEmbroidery(self.main_notebook, wx.ID_ANY)
+        embroidery_panel.set_design(embroidery)
         head, tail = os.path.split(embroidery.extras['filename'])
-        self.main_notebook.AddPage(embrodery_panel, tail)
+        self.main_notebook.AddPage(embroidery_panel, tail)
         page_sizer.Add(self.main_notebook, 1, wx.EXPAND, 0)
         page = self.main_notebook.GetCurrentPage()
-        if isinstance(page, ColorEmbroidery):
-            self.focused_design = page.design
         self.Layout()
 
     def __set_properties(self):
