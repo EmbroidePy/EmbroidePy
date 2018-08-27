@@ -900,6 +900,8 @@ class GuiMain(wx.Frame):
     def on_drop_file(self, event):
         for pathname in event.GetFiles():
             pattern = pyembroidery.read(str(pathname))
+            if pattern is None:
+                continue
             pattern.extras["filename"] = pathname
             self.add_embroidery(pattern)
 
@@ -999,6 +1001,7 @@ if __name__ == "__main__":
     embroiderpy = Embroidepy(0)
     if filename is not None:
         emb_pattern = pyembroidery.read(filename)
-        emb_pattern.extras["filename"] = filename
-        embroiderpy.add_embroidery(emb_pattern)
+        if emb_pattern is not None:
+            emb_pattern.extras["filename"] = filename
+            embroiderpy.add_embroidery(emb_pattern)
     embroiderpy.MainLoop()
