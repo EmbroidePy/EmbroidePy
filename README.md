@@ -10,7 +10,7 @@ If the utility has a GUI and requires wxPython:
 ---
 
 * embroidepy.py	GUI - interface embroidery editor.
-   * ![embroidepy](https://user-images.githubusercontent.com/3302478/44623722-06096680-a88b-11e8-8e7d-30b210892ba1.png)
+   * ![embroiderpy](https://user-images.githubusercontent.com/3302478/44672208-a0c58a80-a9dc-11e8-8119-fbacdd7f1050.png)
    * Uses wxPython and pyembroidery to import, export, view multiple files.
    * Simulates sew paths, forwards and backwards.
       * ![empy-sim](https://user-images.githubusercontent.com/3302478/44623750-ef174400-a88b-11e8-9fdc-dfb2cebefc41.png)
