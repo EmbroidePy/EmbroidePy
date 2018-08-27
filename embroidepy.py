@@ -881,9 +881,9 @@ class GuiMain(wx.Frame):
         self.SetMenuBar(self.menubar)
 
         wxglade_tmp_menu = wx.Menu()
-        menu_close = wxglade_tmp_menu.Append(wx.ID_ANY, "Close Tab", "")
-        self.Bind(wx.EVT_MENU, self.on_menu_close, menu_close)
-        self.menubar.Append(wxglade_tmp_menu, "Window")
+        menu_close = wxglade_tmp_menu.Append(wx.ID_ANY, "About", "")
+        self.Bind(wx.EVT_MENU, self.on_menu_about, menu_close)
+        self.menubar.Append(wxglade_tmp_menu, "Help")
         self.SetMenuBar(self.menubar)
         # Menu Bar end
 
@@ -895,16 +895,10 @@ class GuiMain(wx.Frame):
 
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
 
-    def on_menu_close(self, event):
-        for index in range(self.main_notebook.GetPageCount()):
-            if self.main_notebook.GetPage(index).design is self.focused_design:
-                self.main_notebook.DeletePage(index)
-                self.main_notebook.SendSizeEvent()
-                self.focused_design = None
-                page = self.main_notebook.GetCurrentPage()
-                if isinstance(page, ColorEmbroidery):
-                    self.focused_design = page.design
-                break
+    def on_menu_about(self, event):
+        import embroidePyAboutDialog
+        about = embroidePyAboutDialog.MyDialog()
+        about.Show()
 
     def on_drop_file(self, event):
         for pathname in event.GetFiles():
