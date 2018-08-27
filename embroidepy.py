@@ -870,13 +870,13 @@ class BaseAuiNotebook(aui.AuiNotebook):
         Default class constructor.
 
         :param `parent`: Pointer to a parent window.
-        :type `parent`: `wx.Window`_
+        :type `parent`: `wx.Window`
         :param `id`: Window identifier.
         :type `id`: int
         :param `pos`: Window position.
-        :type `pos`: `wx.Point`_
+        :type `pos`: `wx.Point`
         :param `size`: Window size.
-        :type `size`: `wx.Size`_
+        :type `size`: `wx.Size`
         :param `style`: Window style.
         :type `style`: long
         :param `agwStyle`: The AGW-specific window style.
