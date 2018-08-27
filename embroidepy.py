@@ -22,75 +22,148 @@ from pyembroidery.CsvReader import get_command_dictionary
 from pyembroidery.EmbConstant import *
 
 USE_BUFFERED_DC = True
-MATRIX_SCALE_X = 0
-MATRIX_SCALE_Y = 4
-MATRIX_TRANS_X = 2
-MATRIX_TRANS_Y = 5
-MATRIX_SKEW_X = 1
-MATRIX_SKEW_Y = 3
-MATRIX_PERSP_0 = 6
-MATRIX_PERSP_1 = 7
 
 
-def get_identity():
-    return \
-        1, 0, 0, \
-        0, 1, 0, \
-        0, 0, 1  # identity
+class ZoomerPanel(wx.Panel):
+    def __init__(self, *args, **kwds):
+        self.matrix = wx.AffineMatrix2D()
+        self.invert_matrix = wx.AffineMatrix2D()
+        self.previous_position = None
+        self._Buffer = None
+
+        kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
+        wx.Panel.__init__(self, *args, **kwds)
+
+        self.Bind(wx.EVT_PAINT, self.on_paint)
+        self.Bind(wx.EVT_SIZE, self.on_size)
+        self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase)
+
+        self.Bind(wx.EVT_MOTION, self.on_mouse_move)
+        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
+        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
+        self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up)
+
+    def on_paint(self, event):
+        # All that is needed here is to draw the buffer to screen
+        if USE_BUFFERED_DC:
+            dc = wx.BufferedPaintDC(self, self._Buffer)
+        else:
+            dc = wx.PaintDC(self)
+            dc.DrawBitmap(self._Buffer, 0, 0)
+
+    def on_size(self, event):
+        Size = self.ClientSize
+        self._Buffer = wx.Bitmap(*Size)
+        self.update_drawing()
+
+    def on_erase(self, event):
+        pass
+
+    def update_drawing(self):
+        """
+        This would get called if the drawing needed to change, for whatever reason.
+
+        The idea here is that the drawing is based on some data generated
+        elsewhere in the system. If that data changes, the drawing needs to
+        be updated.
+
+        This code re-draws the buffer, then calls Update, which forces a paint event.
+        """
+        dc = wx.MemoryDC()
+        dc.SelectObject(self._Buffer)
+        self.on_draw_interface(dc)
+        dc.SetTransformMatrix(self.matrix)
+        self.on_draw_scene(dc)
+        del dc  # need to get rid of the MemoryDC before Update() is called.
+        self.Refresh()
+        self.Update()
+
+    def on_draw_scene(self, dc):
+        pass
+
+    def on_draw_interface(self, dc):
+        pass
+
+    def scene_matrix_reset(self):
+        self.matrix = wx.AffineMatrix2D()
+
+    def scene_post_scale(self, sx, sy=None):
+        if sy is None:
+            self.matrix.Scale(sx, sx)
+        else:
+            self.matrix.Scale(sx, sy)
+
+    def scene_post_pan(self, px, py):
+        self.matrix.Translate(px, py)
+
+    def get_scale_x(self):
+        return self.matrix.Get()[0].m_11
+
+    def get_scale_y(self):
+        return self.matrix.Get()[0].m_22
+
+    def get_skew_x(self):
+        return self.matrix.Get()[0].m_12
+
+    def get_skew_y(self):
+        return self.matrix.Get()[0].m_21
+
+    def get_translate_x(self):
+        return self.matrix.Get()[1].x
+
+    def get_translate_y(self):
+        return self.matrix.Get()[1].y
+
+    def on_mousewheel(self, event):
+        rotation = event.GetWheelRotation()
+        mouse = self.convert_window_to_scene(event.GetPosition())
+        self.scene_post_pan(mouse[0], mouse[1])
+        if rotation > 1:
+            self.scene_post_scale(1.1)
+        elif rotation < -1:
+            self.scene_post_scale(0.9, 0.9)
+        self.scene_post_pan(-mouse[0], -mouse[1])
+        self.update_drawing()
+
+    def on_mouse_middle_down(self, event):
+        self.previous_position = event.GetPosition()
+
+    def on_mouse_middle_up(self, event):
+        self.previous_position = None
+
+    def on_mouse_move(self, event):
+        if self.previous_position is None:
+            return
+        scene_position = event.GetPosition()
+        previous_scene_position = self.previous_position
+        dx = (scene_position[0] - previous_scene_position[0]) / self.get_scale_x()
+        dy = (scene_position[1] - previous_scene_position[1]) / self.get_scale_y()
+
+        self.scene_post_pan(dx, dy)
+        self.update_drawing()
+        self.previous_position = scene_position
+
+    def focus_position_scene(self, px, py):
+        client_size = self.ClientSize
+        center = self.convert_window_to_scene([client_size[0] / 2, client_size[1] / 2])
+        dx = center[0] - px
+        dy = center[1] - py
+        self.scene_post_pan(dx, dy)
+
+    def convert_scene_to_window(self, position):
+        return self.matrix.TransformPoint(position[0], position[1])
+
+    def convert_window_to_scene(self, position):
+        self.invert_matrix = wx.AffineMatrix2D()
+        self.invert_matrix.Concat(self.matrix)
+        self.invert_matrix.Invert()
+        return self.invert_matrix.TransformPoint(position[0], position[1])
 
 
-def get_scale(sx, sy=None):
-    if sy is None:
-        sy = sx
-    return \
-        sx, 0, 0, \
-        0, sy, 0, \
-        0, 0, 1
-
-
-def get_translate(tx, ty):
-    return \
-        1, 0, tx, \
-        0, 1, ty, \
-        0, 0, 1
-
-
-def get_rotate(theta):
-    tau = math.pi * 2
-    theta *= tau / 360
-    ct = math.cos(theta)
-    st = math.sin(theta)
-    return \
-        ct, st, 0, \
-        -st, ct, 0, \
-        0, 0, 1
-
-
-def matrix_multiply(a, b):
-    return [
-        a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
-        a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
-        a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
-        a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
-        a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
-        a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
-        a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
-        a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
-        a[6] * b[2] + a[7] * b[5] + a[8] * b[8]]
-
-
-def point_in_matrix_space(matrix, v0, v1):
-    return [
-        v0 * matrix[MATRIX_SCALE_X] + v1 * matrix[MATRIX_SKEW_Y] + 1 * matrix[MATRIX_TRANS_X],
-        v0 * matrix[MATRIX_SKEW_X] + v1 * matrix[MATRIX_SCALE_Y] + 1 * matrix[MATRIX_TRANS_Y]
-    ]
-
-
-class EmbroideryView(wx.Panel):
+class EmbroideryView(ZoomerPanel):
     def __init__(self, *args, **kwds):
         self.draw_data = None
         self.emb_pattern = None
-        self.matrix = get_identity()
         self.buffer = 0.1
         self._Buffer = None
         self.current_stitch = -1
@@ -100,26 +173,18 @@ class EmbroideryView(wx.Panel):
         self.previous_position = None
         self.name_dict = get_common_name_dictionary()
         self.track = False
-        # self.matrix = get_identity()
 
         # begin wxGlade: EmbroideryView.__init__
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE | wx.WANTS_CHARS
-        wx.Panel.__init__(self, *args, **kwds)
+        ZoomerPanel.__init__(self, *args, **kwds)
 
         # end wxGlade
-        self.Bind(wx.EVT_PAINT, self.on_paint)
-        self.Bind(wx.EVT_SIZE, self.on_size)
-        self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase)
 
-        self.Bind(wx.EVT_MOTION, self.on_mouse_move)
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_press)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_mouse_left_down)
         self.Bind(wx.EVT_LEFT_UP, self.on_mouse_left_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
-        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
-        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
-        self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up);
 
         # OnSize called to make sure the buffer is initialized.
         # This might result in OnSize getting called twice on some
@@ -127,24 +192,11 @@ class EmbroideryView(wx.Panel):
         self.on_size(None)
         self.paint_count = 0
 
-    def scene_post_scale(self, sx, sy):
-        self.matrix = matrix_multiply(self.matrix, get_scale(sx, sy))
-
-    def scene_post_pan(self, px, py):
-        self.matrix = matrix_multiply(self.matrix, get_translate(px, py))
-
     def on_mouse_move(self, event):
-        self.clicked_position = self.convert_window_to_scene(event.GetPosition())
+        ZoomerPanel.on_mouse_move(self, event)
         if self.drag_point is None:
-            if self.previous_position is None:
-                return
-            previous = self.convert_window_to_scene(self.previous_position)
-            dx = (self.clicked_position[0] - previous[0]) / self.matrix[MATRIX_SCALE_X]
-            dy = (self.clicked_position[1] - previous[1]) / self.matrix[MATRIX_SCALE_Y]
-            self.scene_post_pan(dx, dy)
-            self.update_drawing()
-            self.previous_position = event.GetPosition()
             return
+        self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         mod_stitch = self.emb_pattern.stitches[self.drag_point]
         mod_stitch[0] = self.clicked_position[0]
         mod_stitch[1] = self.clicked_position[1]
@@ -170,33 +222,6 @@ class EmbroideryView(wx.Panel):
         self.clicked_position = None
         self.previous_position = None
         self.drag_point = None
-        self.update_drawing()
-
-    def on_mouse_middle_down(self, event):
-        self.previous_position = event.GetPosition()
-        self.clicked_position = self.convert_window_to_scene(self.previous_position)
-        self.SetFocus()
-        self.drag_point = None
-
-    def on_mouse_middle_up(self, event):
-        self.clicked_position = None
-        self.previous_position = None
-        self.drag_point = None
-        self.update_drawing()
-
-    def on_mousewheel(self, event):
-        rotation = event.GetWheelRotation()
-        origin = self.convert_window_to_scene([0, 0])
-        mouse = self.convert_window_to_scene(event.GetPosition())
-        dx = (mouse[0] - origin[0]) / self.matrix[MATRIX_SCALE_X]
-        dy = (mouse[1] - origin[1]) / self.matrix[MATRIX_SCALE_Y]
-        self.scene_post_pan(dx, dy)
-        if rotation > 1:
-            self.scene_post_scale(1.1, 1.1)
-        elif rotation < -1:
-            self.scene_post_scale(0.9, 0.9)
-        self.scene_post_pan(-dx, -dy)
-
         self.update_drawing()
 
     def on_left_double_click(self, event):
@@ -269,13 +294,6 @@ class EmbroideryView(wx.Panel):
         self.selected_point = best_index
         self.draw_data = None
         self.update_drawing()
-
-    def focus_position_scene(self, px, py):
-        client_size = self.ClientSize
-        center = self.convert_window_to_scene([client_size[0] / 2, client_size[1] / 2])
-        dx = (center[0] - px) / self.matrix[MATRIX_SCALE_X]
-        dy = (center[1] - py) / self.matrix[MATRIX_SCALE_Y]
-        self.scene_post_pan(dx, dy)
 
     def on_key_press(self, event):
         keycode = event.GetKeyCode()
@@ -388,7 +406,15 @@ class EmbroideryView(wx.Panel):
                 trimmed))
         return draw_data
 
-    def on_draw(self, dc):
+    def on_draw_interface(self, dc):
+        dc.SetBackground(wx.Brush("Grey"))
+        dc.Clear()
+        if self.selected_point is not None:
+            mod_stitch = self.emb_pattern.stitches[self.selected_point]
+            name = self.name_dict[mod_stitch[2]] + " " + str(self.selected_point)
+            dc.DrawText(name, 0, 0)
+
+    def on_draw_scene(self, dc):
         if self.emb_pattern is None:
             return
         # Since the pan and zoom is implemented in the canvas this can be maintained stablized.
@@ -398,7 +424,8 @@ class EmbroideryView(wx.Panel):
         current_stitch = self.current_stitch
         # Here's the actual drawing code.
 
-        scale_bit = math.pow(self.matrix[MATRIX_SCALE_X], -0.6)
+        scale_x = self.get_scale_x()
+        scale_bit = math.pow(self.get_scale_x(), -0.6)
 
         count = 0
         count_range = 0
@@ -434,21 +461,9 @@ class EmbroideryView(wx.Panel):
             dc.GetPen().SetWidth(1)
             dc.GetPen().SetStyle(wx.PENSTYLE_SOLID)
             dc.DrawCircle(scene_point[0], scene_point[1], 10 * scale_bit)
-            dc.SetLogicalScale(1, 1)
-            dc.SetLogicalOrigin(0, 0)
-            name = self.name_dict[mod_stitch[2]] + " " + str(self.selected_point)
-            dc.DrawText(name, 0, 0)
-
-    def on_paint(self, event):
-        # All that is needed here is to draw the buffer to screen
-        if USE_BUFFERED_DC:
-            dc = wx.BufferedPaintDC(self, self._Buffer)
-        else:
-            dc = wx.PaintDC(self)
-            dc.DrawBitmap(self._Buffer, 0, 0)
 
     def update_affine(self, width, height):
-        self.matrix = get_identity()
+        self.scene_matrix_reset()
         extends = self.emb_pattern.extends()
         min_x = min(extends[0], 50)
         min_y = min(extends[1], -50)
@@ -461,8 +476,8 @@ class EmbroideryView(wx.Panel):
         scale_y = float(height) / embroidery_height
         translate_x = -min_x + (width * self.buffer) / 2
         translate_y = -min_y + (height * self.buffer) / 2
-        self.matrix = matrix_multiply(self.matrix, get_translate(translate_x, translate_y))
-        self.matrix = matrix_multiply(self.matrix, get_scale(min(scale_x, scale_y)))
+        self.scene_post_scale(min(scale_x, scale_y))
+        self.scene_post_pan(translate_x, translate_y)
 
     def update_affines(self):
         Size = self.ClientSize
@@ -473,64 +488,12 @@ class EmbroideryView(wx.Panel):
 
     def on_size(self, event):
         self.draw_data = None
-        Size = self.ClientSize
-        self._Buffer = wx.Bitmap(*Size)
         self.update_affines()
-        self.update_drawing()
-
-    def on_erase(self, event):
-        pass
-
-    def update_drawing(self):
-        """
-        This would get called if the drawing needed to change, for whatever reason.
-
-        The idea here is that the drawing is based on some data generated
-        elsewhere in the system. If that data changes, the drawing needs to
-        be updated.
-
-        This code re-draws the buffer, then calls Update, which forces a paint event.
-        """
-        dc = wx.MemoryDC()
-        dc.SelectObject(self._Buffer)
-        dc.SetBackground(wx.Brush("Grey"))
-        dc.Clear()
-
-        dc.SetLogicalOrigin(-self.matrix[MATRIX_TRANS_X], -self.matrix[MATRIX_TRANS_Y])
-        dc.SetLogicalScale(self.matrix[MATRIX_SCALE_X], self.matrix[MATRIX_SCALE_Y])
-        self.on_draw(dc)
-        del dc  # need to get rid of the MemoryDC before Update() is called.
-        self.Refresh()
-        self.Update()
+        ZoomerPanel.on_size(self, event)
 
     def set_design(self, set_design):
         self.emb_pattern = set_design
-        # self.update_affines()
         self.update_drawing()
-
-    def convert_window_to_scene(self, position):
-        px = position[0]
-        py = position[1]
-        px /= self.matrix[MATRIX_SCALE_X]
-        py /= self.matrix[MATRIX_SCALE_Y]
-        px -= self.matrix[MATRIX_TRANS_X]
-        py -= self.matrix[MATRIX_TRANS_Y]
-        return px, py
-
-    def convert_scene_to_window(self, position):
-        px = position[0]
-        py = position[1]
-        px += self.matrix[MATRIX_TRANS_X]
-        py += self.matrix[MATRIX_TRANS_Y]
-        px *= self.matrix[MATRIX_SCALE_X]
-        py *= self.matrix[MATRIX_SCALE_Y]
-        return px, py
-
-        # px /= self.scale
-        # py /= self.scale
-        # px -= self.translate_x
-        # py -= self.translate_y
-        # return px, py
 
     @staticmethod
     def distance_sq(p0, p1):
@@ -838,34 +801,35 @@ class BaseAuiNotebook(aui.AuiNotebook):
 
     :seealso: http://wxpython.org/Phoenix/docs/html/lib.agw.aui.auibook.AuiNotebook.html
     """
+
     def __init__(self, parent, id=wx.ID_ANY, pos=wx.DefaultPosition, size=wx.DefaultSize,
                  style=0
-                       ,
-                 agwStyle=#aui.AUI_NB_DEFAULT_STYLE |         #AUI_NB_DEFAULT_STYLE = AUI_NB_TOP | AUI_NB_TAB_SPLIT | AUI_NB_TAB_MOVE | AUI_NB_SCROLL_BUTTONS | AUI_NB_CLOSE_ON_ACTIVE_TAB | AUI_NB_MIDDLE_CLICK_CLOSE | AUI_NB_DRAW_DND_TAB
-                          aui.AUI_NB_TOP |                 #With this style, tabs are drawn along the top of the notebook
-                          # aui.AUI_NB_BOTTOM |              #With this style, tabs are drawn along the bottom of the notebook
-                          ## aui.AUI_NB_LEFT |               #With this style, tabs are drawn along the left of the notebook. Not implemented yet.
-                          ## aui.AUI_NB_RIGHT |              #With this style, tabs are drawn along the right of the notebook. Not implemented yet.
-                          # aui.AUI_NB_CLOSE_BUTTON |        #With this style, a close button is available on the tab bar
-                          aui.AUI_NB_CLOSE_ON_ACTIVE_TAB | #With this style, a close button is available on the active tab
-                          # aui.AUI_NB_CLOSE_ON_ALL_TABS |   #With this style, a close button is available on all tabs
-                          aui.AUI_NB_SCROLL_BUTTONS |      #With this style, left and right scroll buttons are displayed
-                          # aui.AUI_NB_TAB_EXTERNAL_MOVE |     #Allows a tab to be moved to another tab control
-                          # aui.AUI_NB_TAB_FIXED_WIDTH |     #With this style, all tabs have the same width
-                          aui.AUI_NB_TAB_MOVE |            #Allows a tab to be moved horizontally by dragging
-                          aui.AUI_NB_TAB_SPLIT |           #Allows the tab control to be split by dragging a tab
-                          # aui.AUI_NB_HIDE_ON_SINGLE_TAB |  #Hides the tab window if only one tab is present
-                          aui.AUI_NB_SUB_NOTEBOOK |        #This style is used by AuiManager to create automatic AuiNotebooks
-                          aui.AUI_NB_MIDDLE_CLICK_CLOSE |  #Allows to close AuiNotebook tabs by mouse middle button click
-                          aui.AUI_NB_SMART_TABS |          #Use Smart Tabbing, like Alt + Tab on Windows
-                          # aui.AUI_NB_USE_IMAGES_DROPDOWN | #Uses images on dropdown window list menu instead of check items
-                          # aui.AUI_NB_CLOSE_ON_TAB_LEFT |   #Draws the tab close button on the left instead of on the right (a la Camino browser)
-                          aui.AUI_NB_TAB_FLOAT |           #Allows the floating of single tabs. Known limitation: when the notebook is more or less full screen, tabs cannot be dragged far enough outside of the notebook to become floating pages
-                          aui.AUI_NB_DRAW_DND_TAB |        #Draws an image representation of a tab while dragging (on by default)
-                          aui.AUI_NB_ORDER_BY_ACCESS |     #Tab navigation order by last access time for the tabs
-                          # aui.AUI_NB_NO_TAB_FOCUS |        #Don't draw tab focus rectangle
-                          aui.AUI_NB_WINDOWLIST_BUTTON       #With this style, a drop-down list of windows is available
-                          , name='auinotebook'):
+                 ,
+                 agwStyle=  # aui.AUI_NB_DEFAULT_STYLE |         #AUI_NB_DEFAULT_STYLE = AUI_NB_TOP | AUI_NB_TAB_SPLIT | AUI_NB_TAB_MOVE | AUI_NB_SCROLL_BUTTONS | AUI_NB_CLOSE_ON_ACTIVE_TAB | AUI_NB_MIDDLE_CLICK_CLOSE | AUI_NB_DRAW_DND_TAB
+                 aui.AUI_NB_TOP |  # With this style, tabs are drawn along the top of the notebook
+                 # aui.AUI_NB_BOTTOM |              #With this style, tabs are drawn along the bottom of the notebook
+                 ## aui.AUI_NB_LEFT |               #With this style, tabs are drawn along the left of the notebook. Not implemented yet.
+                 ## aui.AUI_NB_RIGHT |              #With this style, tabs are drawn along the right of the notebook. Not implemented yet.
+                 # aui.AUI_NB_CLOSE_BUTTON |        #With this style, a close button is available on the tab bar
+                 aui.AUI_NB_CLOSE_ON_ACTIVE_TAB |  # With this style, a close button is available on the active tab
+                 # aui.AUI_NB_CLOSE_ON_ALL_TABS |   #With this style, a close button is available on all tabs
+                 aui.AUI_NB_SCROLL_BUTTONS |  # With this style, left and right scroll buttons are displayed
+                 # aui.AUI_NB_TAB_EXTERNAL_MOVE |     #Allows a tab to be moved to another tab control
+                 # aui.AUI_NB_TAB_FIXED_WIDTH |     #With this style, all tabs have the same width
+                 aui.AUI_NB_TAB_MOVE |  # Allows a tab to be moved horizontally by dragging
+                 aui.AUI_NB_TAB_SPLIT |  # Allows the tab control to be split by dragging a tab
+                 # aui.AUI_NB_HIDE_ON_SINGLE_TAB |  #Hides the tab window if only one tab is present
+                 aui.AUI_NB_SUB_NOTEBOOK |  # This style is used by AuiManager to create automatic AuiNotebooks
+                 aui.AUI_NB_MIDDLE_CLICK_CLOSE |  # Allows to close AuiNotebook tabs by mouse middle button click
+                 aui.AUI_NB_SMART_TABS |  # Use Smart Tabbing, like Alt + Tab on Windows
+                 # aui.AUI_NB_USE_IMAGES_DROPDOWN | #Uses images on dropdown window list menu instead of check items
+                 # aui.AUI_NB_CLOSE_ON_TAB_LEFT |   #Draws the tab close button on the left instead of on the right (a la Camino browser)
+                 aui.AUI_NB_TAB_FLOAT |  # Allows the floating of single tabs. Known limitation: when the notebook is more or less full screen, tabs cannot be dragged far enough outside of the notebook to become floating pages
+                 aui.AUI_NB_DRAW_DND_TAB |  # Draws an image representation of a tab while dragging (on by default)
+                 aui.AUI_NB_ORDER_BY_ACCESS |  # Tab navigation order by last access time for the tabs
+                 # aui.AUI_NB_NO_TAB_FOCUS |        #Don't draw tab focus rectangle
+                 aui.AUI_NB_WINDOWLIST_BUTTON  # With this style, a drop-down list of windows is available
+                 , name='auinotebook'):
         """
         Default class constructor.
 
@@ -885,7 +849,6 @@ class BaseAuiNotebook(aui.AuiNotebook):
         :type `name`: str
         """
         aui.AuiNotebook.__init__(self, parent, id, pos, size, style, agwStyle, name)
-
 
 
 class GuiMain(wx.Frame):
