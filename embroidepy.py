@@ -20,10 +20,14 @@ import pyembroidery
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.CsvReader import get_command_dictionary
 from pyembroidery.EmbConstant import *
+from pyembroidery.EmbThread import EmbThread
 
 from zoomerpanel import ZoomerPanel
 
-USE_BUFFERED_DC = True
+STATIC_COLOR_LIST = (
+    0x000000, 0x00FF00, 0x0000FF, 0xFF0000, 0x01FFFE, 0xFFA6FE, 0xFFDB66, 0x006401, 0x010067, 0x95003A, 0x007DB5,
+    0xFF00F6, 0xFFEEE8, 0x774D00, 0x90FB92, 0x0076FF, 0xD5FF00, 0xFF937E, 0x6A826C, 0xFF029D, 0xFE8900, 0x7A4782,
+    0x7E2DD2, 0x85A900, 0xFF0056, 0xA42400, 0x00AE7E, 0x683D3B, 0xBDC6FF, 0x263400, 0xBDD393, 0x00B917, 0x9E008E)
 
 
 class EmbroideryView(ZoomerPanel):
@@ -234,7 +238,11 @@ class EmbroideryView(ZoomerPanel):
         stitches = self.emb_pattern.stitches
         draw_data = []
         color_index = 0
-        color = self.emb_pattern.get_thread_or_filler(color_index)
+        try:
+            color = self.emb_pattern.get_thread(color_index)
+        except AttributeError:
+            color = EmbThread()
+            color.set({"rgb": STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)]})
         color_index += 1
         lines = []
         trimmed = True
@@ -249,7 +257,11 @@ class EmbroideryView(ZoomerPanel):
             lines.append([current[0], current[1], next[0], next[1]])
             command = current[2]
             if command == COLOR_CHANGE:
-                color = self.emb_pattern.get_thread_or_filler(color_index)
+                try:
+                    color = self.emb_pattern.get_thread(color_index)
+                except AttributeError:
+                    color = EmbThread()
+                    color.set({"rgb": STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)]})
                 color_index += 1
             if command == next[2]:
                 continue

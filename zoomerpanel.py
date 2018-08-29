@@ -226,17 +226,20 @@ class ZoomerPanel(wx.Panel):
         bottom = new_scene_viewport[3]
         viewport_width = right - left
         viewport_height = bottom - top
-        if viewport_width == 0:
-            viewport_width = 1
-        if viewport_height == 0:
-            viewport_height = 1
+
         left -= viewport_width * buffer
         right += viewport_width * buffer
         top -= viewport_height * buffer
         bottom += viewport_height * buffer
 
-        scale_x = window_width / float(right - left)
-        scale_y = window_height / float(bottom - top)
+        if right == left:
+            scale_x = 100
+        else:
+            scale_x = window_width / float(right - left)
+        if bottom == top:
+            scale_y = 100
+        else:
+            scale_y = window_height / float(bottom - top)
 
         cx = ((right + left) / 2)
         cy = ((top + bottom) / 2)
