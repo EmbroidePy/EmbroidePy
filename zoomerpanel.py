@@ -179,11 +179,11 @@ class ZoomerPanel(wx.Panel):
         self.update_drawing()
         self.previous_position = scene_position
 
-    def focus_position_scene(self, px, py):
+    def focus_position_scene(self, scene_x, scene_y):
         client_size = self.ClientSize
-        center = [client_size[0] / 2.0, client_size[1] / 2.0]
-        dx = center[0] - px
-        dy = center[1] - py
+        center = self.convert_window_to_scene([client_size[0] / 2.0, client_size[1] / 2.0])
+        dx = scene_x - center[0]
+        dy = scene_y - center[1]
         self.scene_post_pan(dx, dy)
 
     def convert_scene_to_window(self, position):
@@ -191,6 +191,6 @@ class ZoomerPanel(wx.Panel):
 
     def convert_window_to_scene(self, position):
         self.matrix.Invert()
-        converted_point = self.invert_matrix.TransformPoint(position[0], position[1])
+        converted_point = self.matrix.TransformPoint(position[0], position[1])
         self.matrix.Invert()
         return converted_point
