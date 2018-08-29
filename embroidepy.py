@@ -21,150 +21,16 @@ from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.CsvReader import get_command_dictionary
 from pyembroidery.EmbConstant import *
 
+from zoomerpanel import ZoomerPanel
+
 USE_BUFFERED_DC = True
-
-
-class ZoomerPanel(wx.Panel):
-    def __init__(self, *args, **kwds):
-        self.matrix = wx.AffineMatrix2D()
-        self.invert_matrix = wx.AffineMatrix2D()
-        self.previous_position = None
-        self._Buffer = None
-
-        kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE
-        wx.Panel.__init__(self, *args, **kwds)
-
-        self.Bind(wx.EVT_PAINT, self.on_paint)
-        self.Bind(wx.EVT_SIZE, self.on_size)
-        self.Bind(wx.EVT_ERASE_BACKGROUND, self.on_erase)
-
-        self.Bind(wx.EVT_MOTION, self.on_mouse_move)
-        self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
-        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
-        self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up)
-
-    def on_paint(self, event):
-        # All that is needed here is to draw the buffer to screen
-        if USE_BUFFERED_DC:
-            dc = wx.BufferedPaintDC(self, self._Buffer)
-        else:
-            dc = wx.PaintDC(self)
-            dc.DrawBitmap(self._Buffer, 0, 0)
-
-    def on_size(self, event):
-        Size = self.ClientSize
-        self._Buffer = wx.Bitmap(*Size)
-        self.update_drawing()
-
-    def on_erase(self, event):
-        pass
-
-    def update_drawing(self):
-        """
-        This would get called if the drawing needed to change, for whatever reason.
-
-        The idea here is that the drawing is based on some data generated
-        elsewhere in the system. If that data changes, the drawing needs to
-        be updated.
-
-        This code re-draws the buffer, then calls Update, which forces a paint event.
-        """
-        dc = wx.MemoryDC()
-        dc.SelectObject(self._Buffer)
-        self.on_draw_interface(dc)
-        dc.SetTransformMatrix(self.matrix)
-        self.on_draw_scene(dc)
-        del dc  # need to get rid of the MemoryDC before Update() is called.
-        self.Refresh()
-        self.Update()
-
-    def on_draw_scene(self, dc):
-        pass
-
-    def on_draw_interface(self, dc):
-        pass
-
-    def scene_matrix_reset(self):
-        self.matrix = wx.AffineMatrix2D()
-
-    def scene_post_scale(self, sx, sy=None):
-        if sy is None:
-            self.matrix.Scale(sx, sx)
-        else:
-            self.matrix.Scale(sx, sy)
-
-    def scene_post_pan(self, px, py):
-        self.matrix.Translate(px, py)
-
-    def get_scale_x(self):
-        return self.matrix.Get()[0].m_11
-
-    def get_scale_y(self):
-        return self.matrix.Get()[0].m_22
-
-    def get_skew_x(self):
-        return self.matrix.Get()[0].m_12
-
-    def get_skew_y(self):
-        return self.matrix.Get()[0].m_21
-
-    def get_translate_x(self):
-        return self.matrix.Get()[1].x
-
-    def get_translate_y(self):
-        return self.matrix.Get()[1].y
-
-    def on_mousewheel(self, event):
-        rotation = event.GetWheelRotation()
-        mouse = self.convert_window_to_scene(event.GetPosition())
-        self.scene_post_pan(mouse[0], mouse[1])
-        if rotation > 1:
-            self.scene_post_scale(1.1)
-        elif rotation < -1:
-            self.scene_post_scale(0.9, 0.9)
-        self.scene_post_pan(-mouse[0], -mouse[1])
-        self.update_drawing()
-
-    def on_mouse_middle_down(self, event):
-        self.previous_position = event.GetPosition()
-
-    def on_mouse_middle_up(self, event):
-        self.previous_position = None
-
-    def on_mouse_move(self, event):
-        if self.previous_position is None:
-            return
-        scene_position = event.GetPosition()
-        previous_scene_position = self.previous_position
-        dx = (scene_position[0] - previous_scene_position[0]) / self.get_scale_x()
-        dy = (scene_position[1] - previous_scene_position[1]) / self.get_scale_y()
-
-        self.scene_post_pan(dx, dy)
-        self.update_drawing()
-        self.previous_position = scene_position
-
-    def focus_position_scene(self, px, py):
-        client_size = self.ClientSize
-        center = self.convert_window_to_scene([client_size[0] / 2, client_size[1] / 2])
-        dx = center[0] - px
-        dy = center[1] - py
-        self.scene_post_pan(dx, dy)
-
-    def convert_scene_to_window(self, position):
-        return self.matrix.TransformPoint(position[0], position[1])
-
-    def convert_window_to_scene(self, position):
-        self.invert_matrix = wx.AffineMatrix2D()
-        self.invert_matrix.Concat(self.matrix)
-        self.invert_matrix.Invert()
-        return self.invert_matrix.TransformPoint(position[0], position[1])
 
 
 class EmbroideryView(ZoomerPanel):
     def __init__(self, *args, **kwds):
         self.draw_data = None
         self.emb_pattern = None
-        self.buffer = 0.1
+        self.buffer = 0.05
         self._Buffer = None
         self.current_stitch = -1
         self.selected_point = None
@@ -227,8 +93,8 @@ class EmbroideryView(ZoomerPanel):
     def on_left_double_click(self, event):
         self.clicked_position = self.convert_window_to_scene(event.GetPosition())
         nearest = self.get_nearest_point(self.clicked_position)
-        if nearest[0] is None:
-            position = self.convert_window_to_scene(self.clicked_position)
+        if nearest[0] is None:  # No nearest means there's no points.
+            position = self.clicked_position
             stitches = self.emb_pattern.stitches
             stitches.append([position[0], position[1], pyembroidery.STITCH])
             self.selected_point = 0
@@ -322,7 +188,7 @@ class EmbroideryView(ZoomerPanel):
                 if len(stitches) == 0:
                     return
                 stitch = stitches[self.selected_point]
-                self.focus_position_scene(stitch[0], stitch[1])
+                self.focus_position_scene(stitch)
 
             self.update_drawing()
         elif keycode in [65, wx.WXK_LEFT, wx.WXK_NUMPAD4]:
@@ -337,7 +203,7 @@ class EmbroideryView(ZoomerPanel):
                 if len(stitches) == 0:
                     return
                 stitch = stitches[self.selected_point]
-                self.focus_position_scene(stitch[0], stitch[1])
+                self.focus_position_scene(stitch)
 
             self.update_drawing()
         elif keycode in [127]:
@@ -353,7 +219,7 @@ class EmbroideryView(ZoomerPanel):
             if self.track:
                 stitches = self.emb_pattern.stitches
                 stitch = stitches[self.selected_point]
-                self.focus_position_scene(stitch[0], stitch[1])
+                self.focus_position_scene(stitch)
             self.draw_data = None
             self.update_drawing()
         elif keycode in [32]:
@@ -361,7 +227,7 @@ class EmbroideryView(ZoomerPanel):
                 return
             stitches = self.emb_pattern.stitches
             stitch = stitches[self.selected_point]
-            self.focus_position_scene(stitch[0], stitch[1])
+            self.focus_position_scene(stitch)
             self.update_drawing()
 
     def create_draw_data(self):
@@ -406,7 +272,7 @@ class EmbroideryView(ZoomerPanel):
                 trimmed))
         return draw_data
 
-    def on_draw_interface(self, dc):
+    def on_draw_background(self, dc):
         dc.SetBackground(wx.Brush("Grey"))
         dc.Clear()
         if self.selected_point is not None:
@@ -425,7 +291,8 @@ class EmbroideryView(ZoomerPanel):
         # Here's the actual drawing code.
 
         scale_x = self.get_scale_x()
-        scale_bit = math.pow(self.get_scale_x(), -0.6)
+        # scale_bit = math.pow(self.get_scale_x(), -0.6)
+        scale_bit = 1
 
         count = 0
         count_range = 0
@@ -463,21 +330,8 @@ class EmbroideryView(ZoomerPanel):
             dc.DrawCircle(scene_point[0], scene_point[1], 10 * scale_bit)
 
     def update_affine(self, width, height):
-        self.scene_matrix_reset()
         extends = self.emb_pattern.extends()
-        min_x = min(extends[0], 50)
-        min_y = min(extends[1], -50)
-        max_x = max(extends[2], 50)
-        max_y = max(extends[3], -50)
-
-        embroidery_width = (max_x - min_x) + (width * self.buffer)
-        embroidery_height = (max_y - min_y) + (height * self.buffer)
-        scale_x = float(width) / embroidery_width
-        scale_y = float(height) / embroidery_height
-        translate_x = -min_x + (width * self.buffer) / 2
-        translate_y = -min_y + (height * self.buffer) / 2
-        self.scene_post_scale(min(scale_x, scale_y))
-        self.scene_post_pan(translate_x, translate_y)
+        self.focus_viewport_scene(extends)
 
     def update_affines(self):
         Size = self.ClientSize
@@ -590,9 +444,6 @@ class SimulatorView(wx.Frame):
             self.decrement_stitch()
         self.stitch_slider.SetValue(self.canvas.current_stitch)
         self.canvas.update_drawing()
-
-    def OnErase(self, event):
-        pass
 
     def __set_properties(self):
         # begin wxGlade: SimulatorView.__set_properties
