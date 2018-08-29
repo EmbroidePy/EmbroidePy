@@ -329,21 +329,18 @@ class EmbroideryView(ZoomerPanel):
             dc.GetPen().SetStyle(wx.PENSTYLE_SOLID)
             dc.DrawCircle(scene_point[0], scene_point[1], 10 * scale_bit)
 
-    def update_affine(self, width, height):
+    def update_affine(self):
+        if self.emb_pattern is None:
+            return
         extends = self.emb_pattern.extends()
-        self.focus_viewport_scene(extends)
-
-    def update_affines(self):
-        Size = self.ClientSize
-        try:
-            self.update_affine(Size[0], Size[1])
-        except (AttributeError, TypeError):
-            pass
+        # self.focus_viewport_scene(extends, self.buffer, False) # Makes scale unlocked
+        self.focus_viewport_scene(extends, self.buffer)
+        self.update_drawing()
 
     def on_size(self, event):
-        self.draw_data = None
-        self.update_affines()
         ZoomerPanel.on_size(self, event)
+        self.draw_data = None
+        self.update_affine()
 
     def set_design(self, set_design):
         self.emb_pattern = set_design
