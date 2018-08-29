@@ -218,7 +218,7 @@ class ZoomerPanel(wx.Panel):
         self.scene_post_scale(scale_x, scale_y)
         self.scene_post_pan(window_width / 2.0, window_height / 2)
 
-    def focus_viewport_scene(self, new_scene_viewport, buffer=0.1, lock=True):
+    def focus_viewport_scene(self, new_scene_viewport, buffer=0, lock=True):
         window_width, window_height = self.ClientSize
         left = new_scene_viewport[0]
         top = new_scene_viewport[1]
