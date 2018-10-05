@@ -228,9 +228,9 @@ class EmbroideryView(ZoomerPanel):
         color_index = 0
         try:
             color = self.emb_pattern.get_thread(color_index)
-        except AttributeError:
+        except IndexError:
             color = EmbThread()
-            color.set({"rgb": STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)]})
+            color.set(STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)])
         color_index += 1
         lines = []
         trimmed = True
@@ -240,33 +240,37 @@ class EmbroideryView(ZoomerPanel):
         ie = len(stitches) - 2
         while i < ie:
             i += 1
-            current = stitches[i]
-            next = stitches[i + 1]
-            lines.append([current[0], current[1], next[0], next[1]])
-            command = current[2]
-            if command == COLOR_CHANGE:
+            current_stitch = stitches[i]
+            next_stitch = stitches[i + 1]
+            lines.append([current_stitch[0], current_stitch[1], next_stitch[0], next_stitch[1]])
+            command = current_stitch[2] & COMMAND_MASK
+            if command == COLOR_CHANGE or command == NEEDLE_SET:
                 try:
                     color = self.emb_pattern.get_thread(color_index)
-                except AttributeError:
+                except IndexError:
                     color = EmbThread()
-                    color.set({"rgb": STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)]})
+                    color.set(STATIC_COLOR_LIST[color_index % len(STATIC_COLOR_LIST)])
                 color_index += 1
-            if command == next[2]:
+            if command == next_stitch[2]:
                 continue
             if command == STITCH or command == SEQUIN_EJECT or command == SEW_TO or command == NEEDLE_AT:
                 trimmed = False
-            elif command == TRIM or command == COLOR_CHANGE or command == COLOR_BREAK or command == SEQUENCE_BREAK:
+            elif command == TRIM or command == COLOR_CHANGE or\
+                    command == COLOR_BREAK or command == SEQUENCE_BREAK or\
+                    command == NEEDLE_SET:
                 trimmed = True
+            color_tuple = (color.get_red(), color.get_green(), color.get_blue())
             draw_data.append((
-                (color.get_red(), color.get_green(), color.get_blue()),
+                color_tuple,
                 lines,
                 command,
                 trimmed))
             lines = []
 
         if len(lines) > 0:
+            color_tuple = (color.get_red(), color.get_green(), color.get_blue())
             draw_data.append((
-                (color.get_red(), color.get_green(), color.get_blue()),
+                (color_tuple),
                 lines,
                 command,
                 trimmed))
@@ -332,7 +336,7 @@ class EmbroideryView(ZoomerPanel):
     def update_affine(self):
         if self.emb_pattern is None:
             return
-        extends = self.emb_pattern.extends()
+        extends = self.emb_pattern.bounds()
         # self.focus_viewport_scene(extends, self.buffer, False) # Makes scale unlocked
         self.focus_viewport_scene(extends, self.buffer)
         self.update_drawing()

@@ -5,24 +5,13 @@
 #
 
 # Imports.--------------------------------------------------------------------
-# -Python Imports.
-import os
-import sys
-import math
-
 # -wxPython Imports.
 import wx
 import wx.grid
-import wx.lib.agw.aui as aui
 
 # -pyembroidery Imports.
 import pyembroidery
-from pyembroidery.CsvWriter import get_common_name_dictionary
-from pyembroidery.CsvReader import get_command_dictionary
-from pyembroidery.EmbConstant import *
-from pyembroidery.EmbThread import EmbThread
 
-from ZoomerPanel import ZoomerPanel
 
 class StitchEditor(wx.Frame):
     def __init__(self, *args, **kwds):
@@ -68,7 +57,7 @@ class StitchEditor(wx.Frame):
         if col == -1:
             return
         elif col == 0:
-            command_dict = get_command_dictionary()
+            command_dict = pyembroidery.get_command_dictionary()
             command = command_dict[value]
             stitch[2] = command
         elif col == 1:
@@ -100,7 +89,7 @@ class StitchEditor(wx.Frame):
 
         self.last_event = event
         menu = wx.Menu()
-        name_dict = get_common_name_dictionary()
+        name_dict = pyembroidery.get_common_name_dictionary()
 
         for the_key, the_value in name_dict.items():
             menu_item = menu.Append(the_key, the_value, the_value)
@@ -113,7 +102,7 @@ class StitchEditor(wx.Frame):
         row = self.last_event.GetRow()
         stitches = self.design.stitches
         stitch = stitches[row]
-        name_dict = get_common_name_dictionary()
+        name_dict = pyembroidery.get_common_name_dictionary()
         command = event.GetId()
         command_name = name_dict[command]
         stitch[2] = command
@@ -131,7 +120,7 @@ class StitchEditor(wx.Frame):
         stitch = stitches[position]
         stitches.insert(position, stitch[:])
         self.grid.InsertRows(position)
-        common_dict = get_common_name_dictionary()
+        common_dict = pyembroidery.get_common_name_dictionary()
         common_name = common_dict[stitch[2]]
         self.grid.SetCellValue(position, 0, common_name)
         self.grid.SetCellValue(position, 1, str(stitch[0]))
@@ -151,7 +140,7 @@ class StitchEditor(wx.Frame):
         self.grid.SetColLabelValue(1, "X")
         self.grid.SetColLabelValue(2, "Y")
 
-        common_dict = get_common_name_dictionary()
+        common_dict = pyembroidery.get_common_name_dictionary()
         for i, stitch in enumerate(self.design.stitches):
             common_name = common_dict[stitch[2]]
             self.grid.SetCellValue(i, 0, common_name)

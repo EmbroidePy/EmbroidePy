@@ -6,7 +6,6 @@
 # -Python Imports.
 import os
 import sys
-import math
 
 # -wxPython Imports.
 import wx
@@ -156,6 +155,15 @@ class GuiMain(wx.Frame):
 
         self.Bind(wx.EVT_DROP_FILES, self.on_drop_file)
 
+    def read_file(self, filepath):
+        if filepath is None:
+            return
+        pattern = pyembroidery.read(str(filepath))
+        if pattern is None:
+            return
+        pattern.extras["filename"] = filepath
+        self.add_embroidery(pattern)
+
     def on_menu_about(self, event):
         import embroidePyAboutDialog
         about = embroidePyAboutDialog.MyDialog()
@@ -163,11 +171,7 @@ class GuiMain(wx.Frame):
 
     def on_drop_file(self, event):
         for pathname in event.GetFiles():
-            pattern = pyembroidery.read(str(pathname))
-            if pattern is None:
-                continue
-            pattern.extras["filename"] = pathname
-            self.add_embroidery(pattern)
+            self.read_file(pathname)
 
     def on_menu_stitch_edit(self, event):
         page = self.main_notebook.GetCurrentPage()
@@ -191,9 +195,7 @@ class GuiMain(wx.Frame):
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return  # the user changed their mind
             pathname = fileDialog.GetPath()
-            pattern = pyembroidery.read(str(pathname))
-            pattern.extras["filename"] = pathname
-            self.add_embroidery(pattern)
+            self.read_file(pathname)
 
     def on_menu_export(self, event):
         page = self.main_notebook.GetCurrentPage()
@@ -233,7 +235,6 @@ class GuiMain(wx.Frame):
         head, tail = os.path.split(embroidery.extras['filename'])
         self.main_notebook.AddPage(embroidery_panel, tail)
         page_sizer.Add(self.main_notebook, 1, wx.EXPAND, 0)
-        page = self.main_notebook.GetCurrentPage()
         self.Layout()
 
     def __set_properties(self):
@@ -252,8 +253,8 @@ class Embroidepy(wx.App):
         self.main_editor.Show()
         return True
 
-    def add_embroidery(self, embroidery):
-        self.main_editor.add_embroidery(embroidery)
+    def read_file(self, filename):
+        self.main_editor.read_file(filename)
 
     # end of class Embroidepy
 
@@ -263,9 +264,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         filename = sys.argv[1]
     embroiderpy = Embroidepy(0)
-    if filename is not None:
-        emb_pattern = pyembroidery.read(filename)
-        if emb_pattern is not None:
-            emb_pattern.extras["filename"] = filename
-            embroiderpy.add_embroidery(emb_pattern)
+    embroiderpy.read_file(filename)
     embroiderpy.MainLoop()
