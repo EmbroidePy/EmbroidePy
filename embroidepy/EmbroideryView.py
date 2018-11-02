@@ -44,9 +44,6 @@ class EmbroideryView(ZoomerPanel):
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
 
-        # OnSize called to make sure the buffer is initialized.
-        # This might result in OnSize getting called twice on some
-        # platforms at initialization, but little harm done.
         self.on_size(None)
         self.paint_count = 0
 
