@@ -15,6 +15,7 @@ import wx.grid
 import wx.lib.agw.aui as aui
 from EmbroideryView import EmbroideryView
 from SimulatorView import SimulatorView
+from StatisticsView import StatisticsView
 from StitchEditor import StitchEditor
 
 
@@ -286,7 +287,12 @@ class GuiMain(wx.Frame):
         pass
 
     def on_menu_statistics(self, event):
-        pass
+        page = self.main_notebook.GetCurrentPage()
+        if not isinstance(page, EmbroideryView) or page.emb_pattern is None:
+            return
+        statistics = StatisticsView(None, wx.ID_ANY, "")
+        statistics.set_design(page.emb_pattern)
+        statistics.Show()
 
     def on_menu_small_stitches(self, event):
         pass
@@ -329,7 +335,7 @@ class GuiMain(wx.Frame):
         page = self.main_notebook.GetCurrentPage()
         if not isinstance(page, EmbroideryView) or page.emb_pattern is None:
             return
-        files = "csv (*.csv)"
+        files = "Comma-separated values, csv (*.csv)|*.csv"
         with wx.FileDialog(self, "Save Embroidery", wildcard=files,
                            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT) as fileDialog:
 
@@ -338,9 +344,16 @@ class GuiMain(wx.Frame):
             # save the current contents in the file
             pathname = fileDialog.GetPath()
             pyembroidery.write(page.emb_pattern, str(pathname))
+            page.emb_pattern.extras["filename"] = pathname
 
     def on_menu_save(self, event):
-        self.on_menu_save(event)
+        page = self.main_notebook.GetCurrentPage()
+        if not isinstance(page, EmbroideryView) or page.emb_pattern is None:
+            return
+        path = page.emb_pattern.extras["filename"]
+        if path is None:
+            return
+        pyembroidery.write(page.emb_pattern, str(path))
 
     def on_menu_export(self, event):
         page = self.main_notebook.GetCurrentPage()

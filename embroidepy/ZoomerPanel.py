@@ -15,6 +15,8 @@ class ZoomerPanel(wx.Panel):
     def __init__(self, *args, **kwds):
         self.matrix = ZMatrix()
         self.identity = ZMatrix()
+        self.matrix.Reset()
+        self.identity.Reset()
         self.previous_position = None
         self._Buffer = None
 
@@ -29,6 +31,7 @@ class ZoomerPanel(wx.Panel):
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
         self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up)
+        self.on_size(None)
 
     def on_paint(self, event):
         wx.BufferedPaintDC(self, self._Buffer)
@@ -134,7 +137,7 @@ class ZoomerPanel(wx.Panel):
         self.scene_matrix_reset()
         self.scene_post_pan(-scene_point[0], -scene_point[1])
         self.scene_post_scale(scale_x, scale_y)
-        self.scene_post_pan(window_width / 2.0, window_height / 2)
+        self.scene_post_pan(window_width / 2.0, window_height / 2.0)
 
     def focus_viewport_scene(self, new_scene_viewport, buffer=0, lock=True):
         window_width, window_height = self.ClientSize
@@ -165,9 +168,11 @@ class ZoomerPanel(wx.Panel):
         self.matrix.PostTranslate(-cx, -cy)
         if lock:
             scale = min(scale_x, scale_y)
-            self.matrix.PostScale(scale)
+            if scale != 0:
+                self.matrix.PostScale(scale)
         else:
-            self.matrix.PostScale(scale_x, scale_y)
+            if scale_x != 0 and scale_y != 0:
+                self.matrix.PostScale(scale_x, scale_y)
         self.matrix.PostTranslate(window_width / 2.0, window_height / 2.0)
 
     def convert_scene_to_window(self, position):

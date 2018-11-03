@@ -1,16 +1,15 @@
 import sys
 
+import ZoomerPanel
+# -pyembroidery Imports.
+import pyembroidery
 # -wxPython Imports.
 import wx
 import wx.grid
-import ZoomerPanel
-
-# -pyembroidery Imports.
-import pyembroidery
+from ZoomerPanel import ZoomerPanel
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.EmbConstant import *
 from pyembroidery.EmbThread import EmbThread
-from ZoomerPanel import ZoomerPanel
 
 STATIC_COLOR_LIST = (
     0x000000, 0x00FF00, 0x0000FF, 0xFF0000, 0x01FFFE, 0xFFA6FE, 0xFFDB66, 0x006401, 0x010067, 0x95003A, 0x007DB5,
@@ -35,7 +34,6 @@ class EmbroideryView(ZoomerPanel):
         # begin wxGlade: EmbroideryView.__init__
         kwds["style"] = kwds.get("style", 0) | wx.DEFAULT_FRAME_STYLE | wx.WANTS_CHARS
         ZoomerPanel.__init__(self, *args, **kwds)
-
         # end wxGlade
 
         self.Bind(wx.EVT_KEY_DOWN, self.on_key_press)
@@ -43,8 +41,6 @@ class EmbroideryView(ZoomerPanel):
         self.Bind(wx.EVT_LEFT_UP, self.on_mouse_left_up)
         self.Bind(wx.EVT_LEFT_DCLICK, self.on_left_double_click)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
-
-        self.on_size(None)
         self.paint_count = 0
 
     def on_mouse_move(self, event):
@@ -81,11 +77,15 @@ class EmbroideryView(ZoomerPanel):
 
     def on_left_double_click(self, event):
         self.clicked_position = self.convert_window_to_scene(event.GetPosition())
+        if self.clicked_position[0] != self.clicked_position[0]:  # NaN check
+            self.focus_position_scene((0, 0))
+            self.clicked_position = self.convert_window_to_scene(event.GetPosition())
+
         nearest = self.get_nearest_point(self.clicked_position)
         if nearest[0] is None:  # No nearest means there's no points.
             position = self.clicked_position
             stitches = self.emb_pattern.stitches
-            stitches.append([position[0], position[1], pyembroidery.STITCH])
+            stitches.append([float(position[0]), float(position[1]), pyembroidery.STITCH])
             self.selected_point = 0
             self.draw_data = None
             self.update_drawing()
@@ -252,8 +252,8 @@ class EmbroideryView(ZoomerPanel):
                 continue
             if command == STITCH or command == SEQUIN_EJECT or command == SEW_TO or command == NEEDLE_AT:
                 trimmed = False
-            elif command == TRIM or command == COLOR_CHANGE or\
-                    command == COLOR_BREAK or command == SEQUENCE_BREAK or\
+            elif command == TRIM or command == COLOR_CHANGE or \
+                    command == COLOR_BREAK or command == SEQUENCE_BREAK or \
                     command == NEEDLE_SET:
                 trimmed = True
             color_tuple = (color.get_red(), color.get_green(), color.get_blue())
