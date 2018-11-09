@@ -43,6 +43,8 @@ class EmbroideryView(ZoomerPanel):
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right_mouse_down)
         self.paint_count = 0
 
+        self.on_size(None)
+
     def on_mouse_move(self, event):
         ZoomerPanel.on_mouse_move(self, event)
         if self.drag_point is None:

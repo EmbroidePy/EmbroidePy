@@ -31,7 +31,6 @@ class ZoomerPanel(wx.Panel):
         self.Bind(wx.EVT_MOUSEWHEEL, self.on_mousewheel)
         self.Bind(wx.EVT_MIDDLE_DOWN, self.on_mouse_middle_down)
         self.Bind(wx.EVT_MIDDLE_UP, self.on_mouse_middle_up)
-        self.on_size(None)
 
     def on_paint(self, event):
         wx.BufferedPaintDC(self, self._Buffer)
