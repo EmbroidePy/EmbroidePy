@@ -298,8 +298,8 @@ class GuiMain(wx.Frame):
         pass
 
     def on_menu_about(self, event):
-        import embroidePyAboutDialog
-        about = embroidePyAboutDialog.MyDialog()
+        import about
+        about = about.MyDialog()
         about.Show()
 
     def on_menu_stitch_edit(self, event):
