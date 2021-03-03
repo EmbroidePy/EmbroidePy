@@ -5,7 +5,7 @@ import pyembroidery
 # -wxPython Imports.
 import wx
 import wx.grid
-from .ZoomerPanel import ZoomerPanel
+from .zoomerpanel import ZoomerPanel
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.EmbConstant import *
 from pyembroidery.EmbThread import EmbThread

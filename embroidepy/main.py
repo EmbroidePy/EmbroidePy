@@ -13,10 +13,10 @@ import pyembroidery
 import wx
 import wx.grid
 import wx.lib.agw.aui as aui
-from .EmbroideryView import EmbroideryView
-from .SimulatorView import SimulatorView
-from .StatisticsView import StatisticsView
-from .StitchEditor import StitchEditor
+from .embroideryview import EmbroideryView
+from .simulatorview import SimulatorView
+from .statisticsview import StatisticsView
+from .stitcheditor import StitchEditor
 
 
 class BaseAuiNotebook(aui.AuiNotebook):

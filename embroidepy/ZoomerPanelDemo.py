@@ -3,7 +3,7 @@
 
 
 import wx
-from ZoomerPanel import ZoomerPanel
+from zoomerpanel import ZoomerPanel
 
 
 class GraphicsView(ZoomerPanel):
