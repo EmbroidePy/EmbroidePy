@@ -8,7 +8,7 @@
 
 # -wxPython Imports.
 import wx
-from ZMatrix import ZMatrix
+from .ZMatrix import ZMatrix
 
 
 class ZoomerPanel(wx.Panel):

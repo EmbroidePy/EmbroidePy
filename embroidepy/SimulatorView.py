@@ -1,7 +1,7 @@
 # -wxPython Imports.
 import wx
 
-from EmbroideryView import EmbroideryView
+from .EmbroideryView import EmbroideryView
 
 
 class SimulatorView(wx.Frame):

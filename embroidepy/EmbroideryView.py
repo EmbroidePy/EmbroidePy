@@ -1,12 +1,11 @@
 import sys
 
-import ZoomerPanel
 # -pyembroidery Imports.
 import pyembroidery
 # -wxPython Imports.
 import wx
 import wx.grid
-from ZoomerPanel import ZoomerPanel
+from .ZoomerPanel import ZoomerPanel
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.EmbConstant import *
 from pyembroidery.EmbThread import EmbThread
@@ -360,7 +359,7 @@ class EmbroideryView(ZoomerPanel):
     def get_nearest_point(self, position):
         best_point = None
         best_index = None
-        best_distance = sys.maxint
+        best_distance = float('inf')
         for i, stitch in enumerate(self.emb_pattern.stitches):
             distance = self.distance_sq(position, stitch)
             if best_point is None or distance < best_distance or (
