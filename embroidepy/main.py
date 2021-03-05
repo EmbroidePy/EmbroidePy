@@ -12,6 +12,7 @@ import wx
 import wx.grid
 import wx.lib.agw.aui as aui
 
+from embroidepy.assets import EmbroidePyLogo
 from .embroideryview import EmbroideryView
 from .simulatorview import SimulatorView
 from .statisticsview import StatisticsView
@@ -409,6 +410,9 @@ class GuiMain(wx.Frame):
 
     def __set_properties(self):
         # begin wxGlade: GuiMain.__set_properties
+        _icon = wx.NullIcon
+        _icon.CopyFromBitmap(EmbroidePyLogo.GetBitmap())
+        self.SetIcon(_icon)
         self.SetTitle("EmbroidepyEditor")
         self.DragAcceptFiles(True)
         # end wxGlade
