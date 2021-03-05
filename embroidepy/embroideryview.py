@@ -5,10 +5,11 @@ import pyembroidery
 # -wxPython Imports.
 import wx
 import wx.grid
-from .zoomerpanel import ZoomerPanel
 from pyembroidery.CsvWriter import get_common_name_dictionary
 from pyembroidery.EmbConstant import *
 from pyembroidery.EmbThread import EmbThread
+
+from .zoomerpanel import ZoomerPanel
 
 STATIC_COLOR_LIST = (
     0x000000, 0x00FF00, 0x0000FF, 0xFF0000, 0x01FFFE, 0xFFA6FE, 0xFFDB66, 0x006401, 0x010067, 0x95003A, 0x007DB5,

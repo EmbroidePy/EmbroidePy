@@ -7,12 +7,11 @@
 import os
 import sys
 
-# -pyembroidery Imports.
 import pyembroidery
-# -wxPython Imports.
 import wx
 import wx.grid
 import wx.lib.agw.aui as aui
+
 from .embroideryview import EmbroideryView
 from .simulatorview import SimulatorView
 from .statisticsview import StatisticsView
@@ -298,8 +297,8 @@ class GuiMain(wx.Frame):
         pass
 
     def on_menu_about(self, event):
-        import about
-        about = about.MyDialog()
+        from .about import MyDialog
+        about = MyDialog()
         about.Show()
 
     def on_menu_stitch_edit(self, event):
