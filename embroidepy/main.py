@@ -13,6 +13,7 @@ import wx.grid
 import wx.lib.agw.aui as aui
 
 from embroidepy.assets import EmbroidePyLogo
+
 from .embroideryview import EmbroideryView
 from .simulatorview import SimulatorView
 from .statisticsview import StatisticsView
