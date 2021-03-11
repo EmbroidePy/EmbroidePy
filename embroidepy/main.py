@@ -448,7 +448,7 @@ def run():
     if args.version:
         print("Embroidepy v%s" % EMBROIDEPY_VERSION)
         return
-    if args.view_graphics:
+    if args.graphics:
         pattern = pyembroidery.EmbPattern(args.input)
         for data in pattern.extras:
             if str(data).startswith('pec_graphic_'):
@@ -457,6 +457,7 @@ def run():
     if args.output:
         pattern = pyembroidery.EmbPattern(args.input)
         pattern.write(args.output)
+        return
     embroiderpy = Embroidepy(0)
     embroiderpy.read_file(args.input)
     embroiderpy.MainLoop()
