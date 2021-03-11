@@ -435,11 +435,30 @@ class Embroidepy(wx.App):
 
 
 def run():
-    filename = None
-    if len(sys.argv) > 1:
-        filename = sys.argv[1]
+    EMBROIDEPY_VERSION = "0.0.3"
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-V", "--version", action="store_true", help="version")
+    parser.add_argument("input", nargs="?", type=str, help="input file")
+    parser.add_argument(
+        "-o", "--output", type=argparse.FileType("w"), help="output file name"
+    )
+    parser.add_argument("-z", "--no_gui", action="store_true", help="run without gui")
+    parser.add_argument("-g", "--graphics", action="store_true", help="view graphics")
+
+    argv = sys.argv[1:]
+    args = parser.parse_args(argv)
+    if args.version:
+        print("Embroidepy v%s" % EMBROIDEPY_VERSION)
+        return
+    if args.view_graphics:
+        pattern = pyembroidery.EmbPattern(args.input)
+        for data in pattern.extras:
+            if str(data).startswith('pec_graphic_'):
+                print(pyembroidery.get_graphic_as_string(pattern.extras[data]))
+        return
     embroiderpy = Embroidepy(0)
-    embroiderpy.read_file(filename)
+    embroiderpy.read_file(args.input)
     embroiderpy.MainLoop()
 
 if __name__ == "__main__":
