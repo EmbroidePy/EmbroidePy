@@ -1,3 +1,5 @@
+import math
+
 import pyembroidery
 import wx
 
@@ -23,6 +25,21 @@ class StatisticsView(wx.Frame):
     def __do_layout(self):
         self.Layout()
 
+    def pattern_length(self, pattern):
+        distance = 0.0
+        for i in range(0, len(pattern.stitches) - 1):
+            if pattern.stitches[i][2] == pyembroidery.STITCH and pattern.stitches[i + 1][2] == pyembroidery.STITCH:
+                a_x = pattern.stitches[i][0]
+                a_y = pattern.stitches[i][1]
+                b_x = pattern.stitches[i + 1][0]
+                b_y = pattern.stitches[i + 1][1]
+                d_x = a_x - b_x
+                d_y = a_y - b_y
+                d_x *= d_x
+                d_y *= d_y
+                distance += math.sqrt(d_x + d_y)
+        return "%03fm" % (distance / 10000)
+
     def set_design(self, pattern):
         self.pattern = pattern
         ctrl = self.list_control
@@ -36,6 +53,8 @@ class StatisticsView(wx.Frame):
         ctrl.SetItem(ctrl.InsertItem(index, "Thread Count:"), 1, str(pattern.count_color_changes()))
         index += 1
         ctrl.SetItem(ctrl.InsertItem(index, "Needle Count:"), 1, str(pattern.count_needle_sets()))
+        index += 1
+        ctrl.SetItem(ctrl.InsertItem(index, "Thread Length:"), 1, str(self.pattern_length(pattern)))
         index += 1
         ctrl.SetItem(ctrl.InsertItem(index, "Width:"), 1, "%.1fmm" % width)
         index += 1
